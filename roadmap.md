@@ -17,7 +17,7 @@
 ## Project Structure
 
 ```
-aifinder/
+AIFinder/
 ├── app.py                          # Main Streamlit entry point
 ├── pages/
 │   ├── 1_💬_Chat.py                # Chat interface (main sales bot)
@@ -37,12 +37,20 @@ aifinder/
 │   ├── ingest.py                   # CSV → PostgreSQL ingestion script
 │   ├── schema.sql                  # PostgreSQL schema
 │   ├── graph_schema.cypher         # Neo4j graph schema
-│   └── test_data.csv               # 500 products (LC-0001 to LC-0500)
+│   ├── generate_test_data.py       # Generate fake product data
+│   └── testdata/
+│       ├── test_data.csv           # 500 products (LC-0001 to LC-0500)
+│       └── test_data_10_000.csv    # 10,000 products (LC-0001 to LC-10000)
+├── tests/
+│   └── test_all.py                 # Test suite
 ├── images/                         # Product images folder
-├── requirements.txt                # Python dependencies
-├── .env.example                    # API keys template
+├── config.py                       # YAML config loader
+├── config.yaml                     # Centralized configuration
 ├── docker-compose.yml              # PostgreSQL + Neo4j containers
-├── setup.sh                        # One-click setup script
+├── Makefile                        # Build commands
+├── .env.example                    # API keys template
+├── .gitignore                      # Git ignore rules
+├── roadmap.md                      # Implementation plan
 └── README.md                       # Full instructions
 ```
 
