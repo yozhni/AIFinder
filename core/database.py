@@ -210,7 +210,7 @@ def get_price_range():
     result = execute_query(
         "SELECT MIN(price_usd) as min_price, MAX(price_usd) as max_price FROM products WHERE is_deleted = FALSE"
     )
-    if result:
+    if result and result[0]["min_price"] is not None:
         return {"min": float(result[0]["min_price"]), "max": float(result[0]["max_price"])}
     return {"min": 0, "max": 10000}
 

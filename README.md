@@ -89,7 +89,7 @@ make install
 
 Or manually:
 ```bash
-pip install -r requirements.txt
+pip install streamlit neo4j groq sentence-transformers pandas psycopg2-binary pgvector python-dotenv streamlit-cookies-manager
 ```
 
 ### 3. Setup Database
@@ -208,7 +208,6 @@ AIFinder/
 │   ├── ingest.py             # Data ingestion
 │   └── test_data.csv         # 500 products
 ├── docker-compose.yml        # Docker services
-├── requirements.txt          # Python dependencies
 ├── Makefile                  # Build commands
 ├── .env.example              # API keys template
 └── roadmap.md                # Implementation plan
