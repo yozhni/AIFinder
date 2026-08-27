@@ -63,6 +63,7 @@ Sales chatbot that helps users find lab products, compare items, get recommendat
 | `psycopg2-binary` | PostgreSQL driver |
 | `pgvector` | Vector similarity search |
 | `python-dotenv` | Environment variable loading |
+| `streamlit-cookies-manager` | Browser cookie for session persistence |
 
 Install all at once:
 ```bash

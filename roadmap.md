@@ -305,7 +305,11 @@ volumes:
 
 ### Step 5.2: Create pages/1_💬_Chat.py
 - Chat interface
-- Session ID management
+- Session ID management via browser cookie (streamlit-cookies-manager):
+  - Generate UUID on first visit, save to cookie
+  - Load same session_id on return visits
+  - Cookie persists across tab close/reopen
+  - Package: `pip install streamlit-cookies-manager`
 - Message history display
 - User input handling
 - LLM response integration
