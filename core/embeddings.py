@@ -14,7 +14,8 @@ def get_model():
     """Get or load the embedding model."""
     global _model
     if _model is None:
-        _model = SentenceTransformer(MODEL_NAME)
+        hf_token = get("huggingface", "token")
+        _model = SentenceTransformer(MODEL_NAME, token=hf_token)
     return _model
 
 

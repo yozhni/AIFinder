@@ -70,6 +70,26 @@ Install all at once:
 make install
 ```
 
+### Hugging Face Token (Optional)
+
+The embedding model (`all-MiniLM-L6-v2`) is downloaded from Hugging Face Hub on first run (~80MB). This works without a token, but you may see:
+
+```
+Warning: You are sending unauthenticated requests to the HF Hub
+```
+
+To remove this warning and get faster downloads:
+
+1. Sign up at https://huggingface.co (free)
+2. Go to Settings → Access Tokens → New token (Read role)
+3. Add to `config.yaml`:
+   ```yaml
+   huggingface:
+     token: hf_your_token_here
+   ```
+
+Without a token: model works fine, just slower downloads on first run.
+
 ### 1. Start Services
 
 ```bash
