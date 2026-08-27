@@ -1,0 +1,30 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: aifinder-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: aifinder
+      POSTGRES_PASSWORD: aifinder_pass
+      POSTGRES_DB: aifinder
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: aifinder-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/aifinder_pass
+      NEO4J_PLUGINS: '["graph-data-science"]'
+    volumes:
+      - neo4jdata:/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  neo4jdata:
