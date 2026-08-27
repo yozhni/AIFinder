@@ -1,12 +1,13 @@
 """Vector embedding generation using sentence-transformers."""
 
 from sentence_transformers import SentenceTransformer
+from config import get
 
 # Load model once (global cache)
 _model = None
 
-MODEL_NAME = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+MODEL_NAME = get("embeddings", "model")
+EMBEDDING_DIM = get("embeddings", "dim")
 
 
 def get_model():

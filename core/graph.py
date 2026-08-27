@@ -4,11 +4,13 @@ import os
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
+from config import get
+
 load_dotenv()
 
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "aifinder_pass")
+NEO4J_URI = get("neo4j", "uri")
+NEO4J_USER = get("neo4j", "user")
+NEO4J_PASSWORD = get("neo4j", "password")
 
 
 def get_driver():
@@ -35,7 +37,7 @@ def find_centrifuges_for_cell_harvest():
     """Test 1: Find centrifuges suitable for mammalian cell harvest."""
     query = """
     MATCH (p:Product)-[:BELONGS_TO]->(c:Category {name: "Equipment"})
-    WHERE p.name CONTAINS 'centrifuge' AND p.refrigerated = true
+    WHERE toLower(p.name) CONTAINS 'centrifuge' AND p.refrigerated = true
     RETURN p.id AS id, p.name AS name, p.brand AS brand,
            p.price AS price, p.specifications AS specs,
            p.volume_or_capacity AS capacity
@@ -48,7 +50,7 @@ def find_equipment_for_protein_purification():
     """Test 2: Find equipment for recombinant protein expression and purification."""
     query = """
     MATCH (p:Product)-[:HAS_APPLICATION]->(a:Application)
-    WHERE a.name CONTAINS 'protein purification' OR a.name CONTAINS 'Protein purification'
+    WHERE toLower(a.name) CONTAINS 'protein purification'
     RETURN p.id AS id, p.name AS name, p.brand AS brand,
            p.price AS price, p.category AS category,
            p.application AS application, p.use_case AS use_case
@@ -75,7 +77,7 @@ def find_sterile_pipette_tips():
     """Test 4: Find sterile pipette tips."""
     query = """
     MATCH (p:Product)
-    WHERE p.name CONTAINS 'pipette tips' AND p.sterile = true
+    WHERE toLower(p.name) CONTAINS 'pipette tips' AND p.sterile = true
     OPTIONAL MATCH (p)-[:COMPATIBLE_WITH]->(compat:Product)
     RETURN p.id AS id, p.name AS name, p.brand AS brand,
            p.price AS price, p.sterile AS sterile,
@@ -89,7 +91,7 @@ def compare_products_graph(product_name_1, product_name_2):
     """Test 5: Compare two products by name."""
     query = """
     MATCH (p1:Product), (p2:Product)
-    WHERE p1.name CONTAINS $name1 AND p2.name CONTAINS $name2
+    WHERE toLower(p1.name) CONTAINS toLower($name1) AND toLower(p2.name) CONTAINS toLower($name2)
       AND p1.id < p2.id
     RETURN p1 {.*} AS product_1, p2 {.*} AS product_2
     LIMIT 1
@@ -102,7 +104,7 @@ def get_recommendations_graph(use_case=None, application=None, limit=5):
     if use_case:
         query = """
         MATCH (p:Product)-[:HAS_USE_CASE]->(u:UseCase)
-        WHERE u.name CONTAINS $use_case
+        WHERE toLower(u.name) CONTAINS toLower($use_case)
         RETURN p.id AS id, p.name AS name, p.brand AS brand,
                p.price AS price, p.specifications AS specs
         ORDER BY p.price
@@ -112,7 +114,7 @@ def get_recommendations_graph(use_case=None, application=None, limit=5):
     elif application:
         query = """
         MATCH (p:Product)-[:HAS_APPLICATION]->(a:Application)
-        WHERE a.name CONTAINS $application
+        WHERE toLower(a.name) CONTAINS toLower($application)
         RETURN p.id AS id, p.name AS name, p.brand AS brand,
                p.price AS price, p.use_case AS use_case
         ORDER BY p.price
@@ -158,7 +160,7 @@ def find_products_in_workflow(workflow_name):
     """Find all products in a workflow."""
     query = """
     MATCH (w:Workflow)-[:REQUIRES]->(p:Product)
-    WHERE w.name CONTAINS $workflow_name
+    WHERE toLower(w.name) CONTAINS toLower($workflow_name)
     RETURN p.id AS id, p.name AS name, p.brand AS brand,
            p.price AS price, p.category AS category
     ORDER BY p.category, p.price
@@ -170,7 +172,7 @@ def find_products_by_application(application):
     """Find products by application via graph."""
     query = """
     MATCH (p:Product)-[:HAS_APPLICATION]->(a:Application)
-    WHERE a.name CONTAINS $application
+    WHERE toLower(a.name) CONTAINS toLower($application)
     RETURN p.id AS id, p.name AS name, p.brand AS brand,
            p.price AS price, p.use_case AS use_case
     ORDER BY p.price

@@ -1,0 +1,84 @@
+# AIFinder Configuration
+
+# Paths
+paths:
+  base_dir: .
+  data_dir: ./data
+  testdata_dir: ./data/testdata
+  images_dir: ./images
+
+# Data files
+data:
+  source: ./data/testdata/test_data.csv
+
+# CSV column mappings
+# Maps CSV column names to internal field names
+csv_columns:
+  product_id: Product_ID
+  category: Category
+  product_name: Product_Name
+  brand: Brand
+  model_sku: Model_SKU
+  specifications: Specifications
+  volume_or_capacity: Volume_or_Capacity
+  max_rcf_xg: Max_RCF_xg
+  refrigerated: Refrigerated
+  sterile: Sterile
+  endotoxin_free: Endotoxin_Free
+  application: Application
+  use_case: Use_Case
+  compatible_with: Compatible_With
+  used_for: Used_For
+  requires: Requires
+  alternative_to: Alternative_To
+  limitations_notes: Limitations_Notes
+  typical_user_question: Typical_User_Question
+  price_usd: Price_USD
+  verification_status: Verification_Status
+  data_provenance: Data_Provenance
+  source_reference: Source_Reference
+  url: URL
+  discount: Discount
+  is_deleted: "Deteded?"
+
+# Fields used for embedding text generation
+embedding_fields:
+  - product_name
+  - brand
+  - category
+  - application
+  - use_case
+  - specifications
+  - used_for
+  - requires
+  - alternative_to
+  - typical_user_question
+
+# PostgreSQL
+database:
+  url: postgresql://aifinder:aifinder_pass@localhost:5432/aifinder
+
+# Neo4j
+neo4j:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: aifinder_pass
+
+# Ollama
+ollama:
+  host: http://localhost:11434
+
+# LLM
+llm:
+  provider: groq
+  groq_model: llama-3.1-8b-instant
+  ollama_model: qwen2.5:3b
+
+# Embeddings
+embeddings:
+  model: all-MiniLM-L6-v2
+  dim: 384
+
+# Chat
+chat:
+  context_window_size: 20

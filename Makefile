@@ -1,4 +1,4 @@
-.PHONY: help up down install setup-db load-data run setup dev status logs clean
+.PHONY: help up down install setup-db load-data run setup dev status logs clean test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -47,3 +47,6 @@ neo4j: ## Open Neo4j shell
 
 reindex: ## Reindex database
 	docker exec -i aifinder-postgres psql -U aifinder -d aifinder -c "REINDEX INDEX idx_products_embedding;"
+
+test: ## Run all tests
+	python3 tests/test_all.py

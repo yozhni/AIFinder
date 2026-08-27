@@ -4,14 +4,13 @@ import os
 import json
 from datetime import datetime
 from decimal import Decimal
-from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from pgvector.psycopg2 import register_vector
 
-load_dotenv()
+from config import get
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://aifinder:aifinder_pass@localhost:5432/aifinder")
+DATABASE_URL = get("database", "url")
 
 
 def get_connection():
