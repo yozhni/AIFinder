@@ -10,7 +10,7 @@ down: ## Stop Docker services
 	docker compose down
 
 install: ## Install Python dependencies
-	pip install -r requirements.txt
+	pip install streamlit neo4j groq sentence-transformers pandas psycopg2-binary pgvector python-dotenv
 
 setup-db: ## Create database tables
 	docker exec -i aifinder-postgres psql -U aifinder -d aifinder < data/schema.sql

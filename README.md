@@ -51,6 +51,24 @@ Sales chatbot that helps users find lab products, compare items, get recommendat
 - (Optional) Groq API key for cloud LLM
 - (Optional) Ollama for local LLM
 
+### Python Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `streamlit` | Web UI framework |
+| `neo4j` | Neo4j database driver |
+| `groq` | Groq API client |
+| `sentence-transformers` | Embedding model (MiniLM-L6-v2) |
+| `pandas` | CSV data handling |
+| `psycopg2-binary` | PostgreSQL driver |
+| `pgvector` | Vector similarity search |
+| `python-dotenv` | Environment variable loading |
+
+Install all at once:
+```bash
+make install
+```
+
 ### 1. Start Services
 
 ```bash
