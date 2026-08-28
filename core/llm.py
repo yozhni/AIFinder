@@ -272,5 +272,5 @@ def _format_tool_results(results):
         elif "success" in res:
             parts.append(res.get("message", "Done"))
         elif "error" in res:
-            parts.append(f"Sorry, there was an error: {res['error']}")
+            parts.append(res['error'])
     return "\n\n".join(parts) if parts else "I apologize, but I couldn't find what you're looking for. Could you try a different search?"

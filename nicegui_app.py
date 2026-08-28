@@ -77,9 +77,47 @@ def nav_bar():
         ui.link('Cart', '/cart').style(f'color: {TEXT}; text-decoration: none; font-size: 15px; font-weight: 600;')
 
 
+def get_session_id():
+    """Get or create a consistent session ID stored in localStorage."""
+    import hashlib
+    # Use a fixed session ID for all pages (stored in browser localStorage via JS)
+    return "aifinder_session"
+
+
 def chatbot_js():
     """Shared chatbot JavaScript for all pages."""
-    session_id = str(uuid.uuid4())
+    session_id = get_session_id()
+    ui.add_head_html(f'''
+    <style>
+        .chat-input {{
+            width: 80%;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 14px;
+            color: {TEXT};
+            outline: none;
+            line-height: 1.4;
+            box-sizing: border-box;
+            min-height: 46px;
+        }}
+        .chat-input::placeholder {{
+            color: {TEXT};
+            font-size: 14px;
+            opacity: 0.7;
+        }}
+        .chat-input:focus {{ border-color: #999; }}
+        .send-btn {{
+            width: 42px; height: 42px;
+            background: #888; color: white;
+            border: none; border-radius: 50%;
+            cursor: pointer; font-size: 16px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }}
+    </style>
+    ''')
     ui.run_javascript(f'''
     window._sid = "{session_id}";
     function addMsg(role, text, isHtml) {{
@@ -366,18 +404,36 @@ def products_page():
     ui.add_head_html(COMMON_CSS)
     nav_bar()
 
-    ui.label('Product Catalog').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 16px 0 8px 0;')
+    with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
+        # Main content
+        with ui.column().style('flex: 65; padding: 16px; overflow-y: auto;'):
+            ui.label('Product Catalog').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 0 0 8px 0;')
 
-    categories = ['All'] + get_categories()
-    brands = ['All'] + get_brands()
-    price_range = get_price_range()
+            categories = ['All'] + get_categories()
+            brands = ['All'] + get_brands()
+            price_range = get_price_range()
 
-    with ui.row().classes('w-full gap-4 items-end').style('padding: 0 0 12px 0;'):
-        category_select = ui.select(options=categories, value='All', label='Category').style('flex: 1;')
-        brand_select = ui.select(options=brands, value='All', label='Brand').style('flex: 1;')
-        search_input = ui.input(placeholder='Search products...', label='Search').style('flex: 1;')
+            with ui.row().classes('w-full gap-4 items-end').style('padding: 0 0 12px 0;'):
+                category_select = ui.select(options=categories, value='All', label='Category').style('flex: 1;')
+                brand_select = ui.select(options=brands, value='All', label='Brand').style('flex: 1;')
+                search_input = ui.input(placeholder='Search products...', label='Search').style('flex: 1;')
 
-    products_container = ui.column().classes('w-full')
+            products_container = ui.column().classes('w-full')
+
+        # Chatbot sidebar
+        with ui.column().style(f'flex: 35; background: {BG}; border-left: 1px solid #bbb; padding: 0;'):
+            ui.html(f'''
+            <div style="padding:16px 16px 8px 16px;">
+                <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
+                <div style="font-size:13px; color:{TEXT}; margin-top:2px;">AI chatbot to help you find products</div>
+            </div>
+            <div id="chat-messages" style="overflow-y:auto; padding:0 12px;"></div>
+            <div style="padding:10px 12px; display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+                <input id="chat-in" class="chat-input" type="text" placeholder="Type your message here..." />
+                <button id="chat-send" class="send-btn">▶</button>
+            </div>
+            ''')
+            chatbot_js()
 
     def render_products(e=None):
         products_container.clear()
@@ -421,7 +477,7 @@ def products_page():
                                         f'background: {ACCENT}; color: white; padding: 6px 16px; border-radius: 6px; text-decoration: none; font-size: 13px;'
                                     )
                                     def add_handler(pid=p['id'], e=None):
-                                        db_add_to_cart(str(uuid.uuid4()), pid, 1)
+                                        db_add_to_cart(get_session_id(), pid, 1)
                                         ui.notify(f'Added {pid} to cart!', type='positive')
                                     ui.button('Add to Cart', on_click=add_handler).style(
                                         'background: #666; color: white; border-radius: 6px; font-size: 13px;'
@@ -462,7 +518,7 @@ def _render_product(product_id):
                 ui.label(f"Discount: {product['discount']}%").style('color: green;')
             quantity_input = ui.number(value=1, min=1, label='Quantity').style('margin-top: 16px; width: 120px;')
             def add_handler(e=None):
-                db_add_to_cart(str(uuid.uuid4()), product_id, int(quantity_input.value))
+                db_add_to_cart(get_session_id(), product_id, int(quantity_input.value))
                 ui.notify(f'Added {int(quantity_input.value)}x to cart!', type='positive')
             ui.button('Add to Cart', on_click=add_handler).style(f'background: {ACCENT}; color: white; border-radius: 8px; margin-top: 8px; width: 100%;')
 
@@ -490,7 +546,7 @@ def cart_page():
     ui.add_head_html(COMMON_CSS)
     nav_bar()
 
-    session_id_cart = str(uuid.uuid4())
+    session_id_cart = get_session_id()
 
     with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
         # Main content
@@ -551,7 +607,7 @@ def orders_page():
     ui.add_head_html(COMMON_CSS)
     nav_bar()
 
-    session_id_ord = str(uuid.uuid4())
+    session_id_ord = get_session_id()
 
     with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
         with ui.column().style('flex: 65; padding: 16px; overflow-y: auto;'):
