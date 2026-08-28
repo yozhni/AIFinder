@@ -77,6 +77,96 @@ def nav_bar():
         ui.link('Cart', '/cart').style(f'color: {TEXT}; text-decoration: none; font-size: 15px; font-weight: 600;')
 
 
+def chatbot_js():
+    """Shared chatbot JavaScript for all pages."""
+    session_id = str(uuid.uuid4())
+    ui.run_javascript(f'''
+    window._sid = "{session_id}";
+    function addMsg(role, text, isHtml) {{
+        const chatMsgs = document.getElementById("chat-messages");
+        if (!chatMsgs) return;
+        const isUser = role === "user";
+        const bg = isUser ? "{ACCENT}" : "white";
+        const color = isUser ? "white" : "{TEXT}";
+        const avatarBg = isUser ? "#888" : "{ACCENT}";
+        const avatar = isUser ? "👤" : "🤖";
+        const flexDir = isUser ? "row-reverse" : "row";
+        const html = `
+            <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px; flex-direction:${{flexDir}};">
+                <div style="width:32px;height:32px;border-radius:50%;background:${{avatarBg}};color:white;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${{avatar}}</div>
+                <div style="background:${{bg}}; padding:10px 14px; border-radius:12px; color:${{color}};
+                            font-size:14px; line-height:1.4; max-width:80%;">${{isHtml ? text : text}}</div>
+            </div>`;
+        chatMsgs.insertAdjacentHTML("beforeend", html);
+        chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    }}
+    function saveMsg(role, text, isHtml) {{
+        const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
+        history.push({{ role, text, isHtml }});
+        localStorage.setItem("chat_history", JSON.stringify(history));
+    }}
+    function initChat() {{
+        const chatMsgs = document.getElementById("chat-messages");
+        if (!chatMsgs) return;
+        const saved = localStorage.getItem("chat_history");
+        if (saved) {{
+            try {{
+                const history = JSON.parse(saved);
+                history.forEach(m => addMsg(m.role, m.text, m.isHtml || false));
+            }} catch(e) {{}}
+        }} else {{
+            addMsg("assistant", "Hello! I'm AIFinder, your lab equipment assistant. How can I help you today?", false);
+            saveMsg("assistant", "Hello! I'm AIFinder, your lab equipment assistant. How can I help you today?", false);
+        }}
+    }}
+    function showLoading() {{
+        const chatMsgs = document.getElementById("chat-messages");
+        if (!chatMsgs) return;
+        const html = `
+            <div id="loading" style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px;">
+                <div style="width:32px;height:32px;border-radius:50%;background:{ACCENT};color:white;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🤖</div>
+                <div style="background:white; padding:10px 14px; border-radius:12px; color:{TEXT}; font-size:14px;">thinking...</div>
+            </div>`;
+        chatMsgs.insertAdjacentHTML("beforeend", html);
+        chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    }}
+    function removeLoading() {{
+        const el = document.getElementById("loading");
+        if (el) el.remove();
+    }}
+    async function sendMsg() {{
+        const inp = document.getElementById("chat-in");
+        const text = inp.value.trim();
+        if (!text) return;
+        inp.value = "";
+        addMsg("user", text, false);
+        saveMsg("user", text, false);
+        showLoading();
+        try {{
+            const r = await fetch("/api/chat", {{
+                method: "POST",
+                headers: {{"Content-Type": "application/json"}},
+                body: JSON.stringify({{session_id: window._sid, message: text }})
+            }});
+            const data = await r.json();
+            removeLoading();
+            addMsg("assistant", data.response, true);
+            saveMsg("assistant", data.response, true);
+        }} catch(e) {{
+            removeLoading();
+            addMsg("assistant", "Error: " + e.message, false);
+        }}
+    }}
+    document.addEventListener("DOMContentLoaded", function() {{
+        initChat();
+        const btn = document.getElementById("chat-send");
+        const inp = document.getElementById("chat-in");
+        if (btn) btn.onclick = sendMsg;
+        if (inp) inp.onkeydown = (e) => {{ if (e.key === "Enter") sendMsg(); }};
+    }});
+    ''')
+
+
 # ── HOME PAGE ───────────────────────────────────────────────────────
 @ui.page('/')
 def index():
@@ -400,41 +490,102 @@ def cart_page():
     ui.add_head_html(COMMON_CSS)
     nav_bar()
 
-    session_id = str(uuid.uuid4())
-    ui.label('Shopping Cart').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 16px 0 8px 0;')
+    session_id_cart = str(uuid.uuid4())
 
-    cart = db_get_cart(session_id)
-    if not cart:
-        ui.label('Your cart is empty.').style(f'color: {TEXT}; padding: 20px;')
-        ui.link('Browse Products', '/products').style(f'color: {TEXT}; text-decoration: underline;')
-        return
+    with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
+        # Main content
+        with ui.column().style('flex: 65; padding: 16px; overflow-y: auto;'):
+            ui.label('Shopping Cart').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 0 0 8px 0;')
 
-    for item in cart:
-        with ui.row().classes('w-full items-center gap-4').style(f'background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;'):
-            ui.image(get_product_image(item['product_id'])).style('width: 60px; height: 60px; object-fit: contain; border-radius: 4px;')
-            with ui.column().style('flex: 2;'):
-                ui.label(item['product_name']).style(f'font-weight: 600; color: {TEXT};')
-                ui.label(f"{item['brand']} | {item['product_id']}").style(f'font-size: 12px; color: {TEXT};')
-            ui.label(f"${item['price_usd']:,.2f}").style(f'font-weight: 600; color: {TEXT};')
-            qty = ui.number(value=item['quantity'], min=1, label='Qty').style('width: 80px;')
-            def update_handler(cid=item['id'], qi=qty, e=None):
-                update_cart_item(cid, int(qi.value))
-            qty.on('value-change', update_handler)
-            def remove_handler(cid=item['id'], e=None):
-                remove_from_cart(cid)
-            ui.button(icon='delete', on_click=remove_handler).style('color: red;')
+            cart = db_get_cart(session_id_cart)
+            if not cart:
+                ui.label('Your cart is empty.').style(f'color: {TEXT}; padding: 20px;')
+                ui.link('Browse Products', '/products').style(f'color: {TEXT}; text-decoration: underline;')
+            else:
+                for item in cart:
+                    with ui.row().classes('w-full items-center gap-4').style(f'background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;'):
+                        ui.image(get_product_image(item['product_id'])).style('width: 60px; height: 60px; object-fit: contain; border-radius: 4px;')
+                        with ui.column().style('flex: 2;'):
+                            ui.label(item['product_name']).style(f'font-weight: 600; color: {TEXT};')
+                            ui.label(f"{item['brand']} | {item['product_id']}").style(f'font-size: 12px; color: {TEXT};')
+                        ui.label(f"${item['price_usd']:,.2f}").style(f'font-weight: 600; color: {TEXT};')
+                        qty = ui.number(value=item['quantity'], min=1, label='Qty').style('width: 80px;')
+                        def update_handler(cid=item['id'], qi=qty, e=None):
+                            update_cart_item(cid, int(qi.value))
+                        qty.on('value-change', update_handler)
+                        def remove_handler(cid=item['id'], e=None):
+                            remove_from_cart(cid)
+                        ui.button(icon='delete', on_click=remove_handler).style('color: red;')
 
-    total = get_cart_total(session_id)
-    ui.separator().style('margin: 12px 0;')
-    ui.label(f'Total: ${total:,.2f}').style(f'font-size: 20px; font-weight: 700; color: {TEXT};')
+                total = get_cart_total(session_id_cart)
+                ui.separator().style('margin: 12px 0;')
+                ui.label(f'Total: ${total:,.2f}').style(f'font-size: 20px; font-weight: 700; color: {TEXT};')
 
-    with ui.row().classes('w-full gap-4').style('margin-top: 12px;'):
-        ui.button('Clear Cart', on_click=lambda: clear_cart(session_id)).style('background: #888; color: white; border-radius: 8px;')
-        def checkout():
-            oid = create_order(session_id)
-            if oid:
-                ui.notify(f'Order #{oid} placed!', type='positive')
-        ui.button('Checkout', on_click=checkout).style(f'background: {ACCENT}; color: white; border-radius: 8px;')
+                with ui.row().classes('w-full gap-4').style('margin-top: 12px;'):
+                    ui.button('Clear Cart', on_click=lambda: clear_cart(session_id_cart)).style('background: #888; color: white; border-radius: 8px;')
+                    def checkout():
+                        oid = create_order(session_id_cart)
+                        if oid:
+                            ui.notify(f'Order #{oid} placed!', type='positive')
+                    ui.button('Checkout', on_click=checkout).style(f'background: {ACCENT}; color: white; border-radius: 8px;')
+
+        # Chatbot sidebar
+        with ui.column().style('flex: 35; background: {BG}; border-left: 1px solid #bbb; padding: 0;'):
+            ui.html(f'''
+            <div style="padding:16px 16px 8px 16px;">
+                <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
+                <div style="font-size:13px; color:{TEXT}; margin-top:2px;">AI chatbot to help you find products</div>
+            </div>
+            <div id="chat-messages" style="overflow-y:auto; padding:0 12px;"></div>
+            <div style="padding:10px 12px; display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+                <input id="chat-in" class="chat-input" type="text" placeholder="Type your message here..." />
+                <button id="chat-send" class="send-btn">▶</button>
+            </div>
+            ''')
+            chatbot_js()
+
+
+# ── ORDERS PAGE ─────────────────────────────────────────────────────
+@ui.page('/orders')
+def orders_page():
+    ui.add_head_html(COMMON_CSS)
+    nav_bar()
+
+    session_id_ord = str(uuid.uuid4())
+
+    with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
+        with ui.column().style('flex: 65; padding: 16px; overflow-y: auto;'):
+            ui.label('Order History').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 0 0 8px 0;')
+
+            from core.database import get_orders
+            orders = get_orders(session_id_ord)
+            if not orders:
+                ui.label('No orders yet.').style(f'color: {TEXT}; padding: 20px;')
+                ui.link('Browse Products', '/products').style(f'color: {TEXT}; text-decoration: underline;')
+            else:
+                for order in orders:
+                    with ui.expander(f"Order #{order['id']} - ${order['total_amount']:,.2f} ({order['status']})"):
+                        ui.label(f"Date: {order['created_at']}").style(f'color: {TEXT};')
+                        ui.label(f"Status: {order['status']}").style(f'color: {TEXT};')
+                        ui.label(f"Total: ${order['total_amount']:,.2f}").style(f'color: {TEXT};')
+                        if order.get('items'):
+                            ui.label('Items:').style(f'color: {TEXT}; font-weight: 600;')
+                            for item in order['items']:
+                                ui.label(f"- {item['product_id']} x {item['quantity']} @ ${item['price']:,.2f}").style(f'color: {TEXT};')
+
+        with ui.column().style('flex: 35; background: {BG}; border-left: 1px solid #bbb; padding: 0;'):
+            ui.html(f'''
+            <div style="padding:16px 16px 8px 16px;">
+                <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
+                <div style="font-size:13px; color:{TEXT}; margin-top:2px;">AI chatbot to help you find products</div>
+            </div>
+            <div id="chat-messages" style="overflow-y:auto; padding:0 12px;"></div>
+            <div style="padding:10px 12px; display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+                <input id="chat-in" class="chat-input" type="text" placeholder="Type your message here..." />
+                <button id="chat-send" class="send-btn">▶</button>
+            </div>
+            ''')
+            chatbot_js()
 
 
 app.add_static_files('/static', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static'))
