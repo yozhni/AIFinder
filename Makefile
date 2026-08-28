@@ -1,4 +1,4 @@
-.PHONY: help up down install setup-db load-data run setup dev status logs clean test
+.PHONY: help up down install setup-db load-data run run-open run-gui run-gui-open setup dev status logs clean test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -21,7 +21,21 @@ load-data: ## Load product data
 	python core/sync.py
 
 run: ## Run Streamlit app
-	streamlit run app.py
+	streamlit run app.py --server.headless true
+
+run-open: ## Run Streamlit app and open browser
+	pkill -9 -f "streamlit run" 2>/dev/null; sleep 2
+	streamlit run app.py --server.headless true --server.address 0.0.0.0 &
+	sleep 3
+	open http://localhost:8501
+
+run-gui: ## Run NiceGUI app
+	pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
+	python3 nicegui_app.py
+
+run-gui-open: ## Run NiceGUI app and open browser
+	pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
+	python3 nicegui_app.py &
 
 setup: install up setup-db load-data ## Full setup (install + db + data)
 

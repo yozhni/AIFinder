@@ -155,6 +155,12 @@ streamlit run app.py
 - **App**: http://localhost:8501
 - **Neo4j Browser**: http://localhost:7474 (login: neo4j / aifinder_pass)
 
+### Quick Start (One Command)
+
+```bash
+make run-open    # Starts app + opens browser
+```
+
 ## Services
 
 | Service | Port | URL | Login |
@@ -183,20 +189,72 @@ make clean         # Remove all data and containers
 
 ## LLM Options
 
-### Groq (Cloud) - Recommended
+### Option 1: Ollama (Local) - Free
 
-1. Get free API key at https://console.groq.com
-2. Add to `.env`:
-   ```
-   GROQ_API_KEY=gsk_your_key_here
-   ```
-3. Model: `llama-3.1-8b-instant` (560 tokens/sec, free tier)
+Completely free, runs on your machine, no internet required.
 
-### Ollama (Local)
+**Step 1: Install Ollama**
+```bash
+# macOS
+brew install ollama
 
-1. Install Ollama: https://ollama.com
-2. Pull model: `ollama pull qwen2.5:3b`
-3. App auto-detects Ollama as fallback
+# Or download from https://ollama.com/download
+```
+
+**Step 2: Start Ollama**
+```bash
+ollama serve
+```
+
+**Step 3: Pull model**
+```bash
+ollama pull qwen2.5:3b
+```
+
+**Step 4: Configure**
+Edit `config.yaml`:
+```yaml
+llm:
+  provider: ollama
+  ollama_model: qwen2.5:3b
+```
+
+**Models available:**
+| Model | Size | Speed | Quality |
+|-------|------|-------|---------|
+| qwen2.5:3b | 1.9 GB | 80-120 t/s | Good |
+| qwen2.5:7b | 4.7 GB | 50-80 t/s | Better |
+| llama3:8b | 4.7 GB | 50-80 t/s | Good |
+
+### Option 2: Groq (Cloud) - Paid
+
+Very fast inference, but costs money ($0.075-0.60 per 1M tokens).
+
+**Step 1: Get API Key**
+1. Go to https://console.groq.com
+2. Sign up (free account)
+3. Go to API Keys → Create Key
+4. Copy the key
+
+**Step 2: Configure**
+Edit `config.yaml`:
+```yaml
+llm:
+  provider: groq
+  groq_model: openai/gpt-oss-20b
+
+groq:
+  api_key: gsk_your_key_here
+```
+
+**Available models:**
+| Model | Speed | Price (per 1M tokens) |
+|-------|-------|----------------------|
+| openai/gpt-oss-20b | 1000 t/s | $0.075 in / $0.30 out |
+| openai/gpt-oss-120b | 500 t/s | $0.15 in / $0.60 out |
+| qwen/qwen3.6-27b | 500 t/s | $0.60 in / $3.00 out |
+
+**Recommendation:** Start with Ollama (free). Switch to Groq only if you need faster responses.
 
 ## Data
 

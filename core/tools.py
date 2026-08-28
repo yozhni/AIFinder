@@ -121,7 +121,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "get_recommendations",
-            "description": "Get product recommendations based on a product ID, use case, or application. Use this when the user asks for recommendations or suggestions.",
+            "description": "Get product recommendations based on a product ID or use case. Use this when the user asks for recommendations or suggestions.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -132,10 +132,6 @@ tools = [
                     "use_case": {
                         "type": "string",
                         "description": "Use case to recommend products for (e.g., 'cell culture', 'protein purification')"
-                    },
-                    "application": {
-                        "type": "string",
-                        "description": "Application to recommend products for"
                     },
                     "limit": {
                         "type": "integer",

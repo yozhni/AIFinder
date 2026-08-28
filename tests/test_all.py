@@ -12,7 +12,7 @@ def test_config():
 
     assert get("database", "url") is not None
     assert get("neo4j", "uri") is not None
-    assert get("llm", "groq_model") is not None
+    assert get("llm", "provider") is not None
     assert get("data", "source") is not None
     assert get("csv_columns") is not None
     assert get("embedding_fields") is not None
@@ -319,13 +319,10 @@ def test_tools():
 def test_llm():
     """Test LLM integration (structure only, no API calls)."""
     from core.llm import (
-        execute_tool, build_context, SYSTEM_PROMPT,
-        GROQ_MODEL, OLLAMA_MODEL
+        execute_tool, build_context, SYSTEM_PROMPT
     )
 
     # Check config loaded
-    assert GROQ_MODEL is not None
-    assert OLLAMA_MODEL is not None
     assert len(SYSTEM_PROMPT) > 0
 
     # Test tool execution (search)

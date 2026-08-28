@@ -723,6 +723,59 @@ def reindex():
 
 ---
 
+## API Key Security
+
+### Current Approach (POC)
+API keys are stored in `config.yaml` (plain text). This is fine for local POC but NOT for production.
+
+### Production Approach
+For production, keys should be encrypted:
+
+1. **Environment Variables** (recommended):
+   - Store keys in OS environment variables
+   - Never commit to git
+   - Use `.env` file locally (add to .gitignore)
+
+2. **Encryption at Rest**:
+   - Use `cryptography` library to encrypt config.yaml
+   - Store encryption key in environment variable
+   - Decrypt on app startup
+
+3. **Secret Management** (production):
+   - AWS Secrets Manager
+   - HashiCorp Vault
+   - Docker Secrets
+
+### Implementation Example
+
+```python
+# Encrypt config.yaml
+from cryptography.fernet import Fernet
+
+key = Fernet.generate_key()  # Store this securely
+cipher = Fernet(key)
+
+with open("config.yaml", "rb") as f:
+    encrypted = cipher.encrypt(f.read())
+
+with open("config.yaml.enc", "wb") as f:
+    f.write(encrypted)
+
+# Decrypt on startup
+with open("config.yaml.enc", "rb") as f:
+    decrypted = cipher.decrypt(f.read())
+```
+
+### TODO: Implement Before Public Release
+
+- [ ] Move API keys to environment variables
+- [ ] Add config.yaml to .gitignore
+- [ ] Create config.example.yaml (without secrets)
+- [ ] Implement encryption at rest for config.yaml
+- [ ] Add secret validation on startup
+
+---
+
 ## Tunable Parameters
 
 | Parameter | Location | Default | Effect |
