@@ -84,7 +84,7 @@ ollama:
 
 google:
   model: auto  # Auto-detects free flash model
-  api_key: AQ.Ab8RN6ImRvP_pisJ237Qb5TfL7QU0Durh5mhyDxQuBYtBk50rA
+  api_key: ${GOOGLE_API_KEY}
 
 # LLM Settings
 llm:

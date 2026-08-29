@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 images/LC-*.webp
 !images/placeholder.webp
+.env
