@@ -275,7 +275,7 @@ def index():
                 <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
                 <div style="font-size:13px; color:{TEXT}; margin-top:2px;">AI chatbot to help you find products</div>
             </div>
-            <div id="msgs" style="overflow-y:auto; padding:0 12px;"></div>
+            <div id="chat-messages" style="overflow-y:auto; padding:0 12px;"></div>
             <div style="padding:10px 12px; display:flex; align-items:center; justify-content:flex-end; gap:8px;">
                 <input id="chat-in" class="chat-input" type="text" placeholder="Type your message here..." />
                 <button id="chat-send" class="send-btn">▶</button>
@@ -284,111 +284,7 @@ def index():
     </div>
     ''')
 
-    ui.run_javascript(f'''
-    window._sid = "{session_id}";
-    const msgs = document.getElementById("msgs");
-    const inp = document.getElementById("chat-in");
-    const btn = document.getElementById("chat-send");
-
-    // Load history from localStorage
-    const saved = localStorage.getItem("chat_history");
-    if (saved) {{
-        try {{
-            const history = JSON.parse(saved);
-            history.forEach(m => addMsg(m.role, m.text, m.isHtml || false));
-        }} catch(e) {{}}
-    }} else {{
-        addMsg("assistant", "Hello! I'm AIFinder, your lab equipment assistant. How can I help you today?", false);
-        saveMsg("assistant", "Hello! I'm AIFinder, your lab equipment assistant. How can I help you today?", false);
-    }}
-
-    function saveHistory() {{
-        const items = [];
-        msgs.querySelectorAll("div[style*='margin-bottom:12px']").forEach(d => {{
-            const isBot = d.querySelector("div[style*='background:{ACCENT}']") && !d.style.flexDirection?.includes("row-reverse");
-            const text = d.querySelector("div[style*='border-radius:12px']")?.innerHTML || "";
-            if (text) items.push({{ role: "assistant", text: text, isHtml: true }});
-        }});
-        // Simplified: just save all messages
-    }}
-
-    function addMsg(role, text, isHtml) {{
-        const isUser = role === "user";
-        const bg = isUser ? "{ACCENT}" : "white";
-        const color = isUser ? "white" : "{TEXT}";
-        const avatarBg = isUser ? "#888" : "{ACCENT}";
-        const avatar = isUser ? "👤" : "🤖";
-        const flexDir = isUser ? "row-reverse" : "row";
-        const html = `
-            <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px; flex-direction:${{flexDir}};">
-                <div style="width:32px;height:32px;border-radius:50%;background:${{avatarBg}};color:white;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${{avatar}}</div>
-                <div style="background:${{bg}}; padding:10px 14px; border-radius:12px; color:${{color}};
-                            font-size:14px; line-height:1.4; max-width:80%;">${{isHtml ? text : text}}</div>
-            </div>`;
-        msgs.insertAdjacentHTML("beforeend", html);
-        msgs.scrollTop = msgs.scrollHeight;
-    }}
-
-    function saveMsg(role, text, isHtml) {{
-        const history = JSON.parse(localStorage.getItem("chat_history") || "[]");
-        history.push({{ role, text, isHtml }});
-        localStorage.setItem("chat_history", JSON.stringify(history));
-    }}
-
-    function clearHistory() {{
-        localStorage.removeItem("chat_history");
-    }}
-
-    function showLoading() {{
-        inp.disabled = true;
-        inp.placeholder = "thinking...";
-        btn.disabled = true;
-        const html = `
-            <div id="loading" style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px;">
-                <div style="width:32px;height:32px;border-radius:50%;background:{ACCENT};color:white;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🤖</div>
-                <div style="background:white; padding:10px 14px; border-radius:12px; color:{TEXT}; font-size:14px;">
-                    thinking...
-                </div>
-            </div>`;
-        msgs.insertAdjacentHTML("beforeend", html);
-        msgs.scrollTop = msgs.scrollHeight;
-    }}
-
-    function removeLoading() {{
-        inp.disabled = false;
-        inp.placeholder = "Type your message here...";
-        btn.disabled = false;
-        inp.focus();
-        const el = document.getElementById("loading");
-        if (el) el.remove();
-    }}
-
-    async function sendMsg() {{
-        const text = inp.value.trim();
-        if (!text) return;
-        inp.value = "";
-        addMsg("user", text, false);
-        saveMsg("user", text, false);
-        showLoading();
-        try {{
-            const r = await fetch("/api/chat", {{
-                method: "POST",
-                headers: {{"Content-Type": "application/json"}},
-                body: JSON.stringify({{session_id: window._sid, message: text }})
-            }});
-            const data = await r.json();
-            removeLoading();
-            addMsg("assistant", data.response, true);
-            saveMsg("assistant", data.response, true);
-        }} catch(e) {{
-            removeLoading();
-            addMsg("assistant", "Error: " + e.message, false);
-        }}
-    }}
-
-    btn.onclick = sendMsg;
-    inp.onkeydown = (e) => {{ if (e.key === "Enter") sendMsg(); }};
-    ''')
+    chatbot_js()
 
     ui.html(f'''
     <div style="text-align:center; padding:10px 0; font-size:11px; color:{TEXT};
