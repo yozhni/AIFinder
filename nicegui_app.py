@@ -192,7 +192,9 @@ def home_content():
 
 def products_content():
     ui.label('Product Catalog').style(f'font-size:24px;font-weight:700;color:{TEXT};margin-bottom:8px;')
-    search = ui.input(placeholder='Search products...').style('width:100%;margin-bottom:12px;')
+    with ui.row().classes('w-full gap-2').style('margin-bottom:12px;'):
+        search = ui.input(placeholder='Search products...').style('flex:1;')
+        search_btn = ui.button(icon='search').classes('ab')
     container = ui.column()
 
     def render(e=None):
@@ -219,7 +221,8 @@ def products_content():
                                         ui.notify(f'Added {pid} to cart!', type='positive')
                                     ui.button('add', on_click=add_h).classes('ab')
 
-    search.on('value-change', render)
+    search.on('keydown.enter', render)
+    search_btn.on_click(render)
     render()
 
 
