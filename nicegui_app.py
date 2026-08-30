@@ -121,6 +121,10 @@ def chatbot_js():
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0;
         }}
+        .q-btn.add-btn, .q-btn.add-btn:hover {{
+            background: {ACCENT} !important;
+            color: white !important;
+        }}
     </style>
     ''')
     ui.run_javascript(f'''
@@ -220,7 +224,7 @@ def index():
     <style>
         .home-grid {{
             display: grid;
-            grid-template-columns: 60% 40%;
+            grid-template-columns: 65% 35%;
             height: calc(100vh - 80px);
             width: 100%;
         }}
@@ -342,8 +346,8 @@ def products_page():
                                             def add_handler(pid=p['id'], e=None):
                                                 db_add_to_cart(get_session_id(), pid, 1)
                                                 ui.notify(f'Added {pid} to cart!', type='positive')
-                                            ui.button('Add', on_click=add_handler).style(
-                                                f'background: {ACCENT}; color: white; border-radius: 6px; font-size: 11px; flex: 1; min-height: 28px;'
+                                            ui.button('Add', on_click=add_handler).classes('add-btn').style(
+                                                f'border-radius: 6px; font-size: 11px; flex: 1; min-height: 28px;'
                                             )
 
             search_input.on('value-change', render_products)
