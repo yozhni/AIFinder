@@ -61,8 +61,6 @@ def load_chat_history():
 
 def md_to_html(text):
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    # Convert /Products?product_id=X to /products/X
-    text = re.sub(r'\[(.+?)\]\(/Products\?product_id=(.+?)\)', r'<a href="/products/\2" target="_blank" style="color:#0066cc;">\1</a>', text)
     text = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2" target="_blank" style="color:#0066cc;">\1</a>', text)
     return text.replace('\n', '<br>')
 
@@ -333,10 +331,6 @@ def index():
 @ui.page('/products')
 def products_page():
     page_template(products_content)
-
-@ui.page('/Products')
-def products_redirect():
-    ui.navigate.to('/products')
 
 @ui.page('/products/{product_id}')
 def product_detail_page(product_id):

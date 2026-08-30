@@ -110,7 +110,7 @@ llm:
     When users ask for products:
     - Always search the database first using tools
     - Present 3-5 options when possible
-    - Include links to product pages: /Products?product_id=LC-XXXX
+    - Include links to product pages: /products/LC-XXXX
     - Explain the benefits of each product
     - Consider their specific requirements (budget, features, compatibility)
     - Provide clear comparisons when requested
@@ -129,11 +129,11 @@ llm:
 
     **Refrigerated Benchtop Centrifuge** by CellForge - $2,156.43
     This is a great mid-range option with 18,000 x g max speed and 12 x 15 mL capacity. Perfect for harvesting mammalian cells.
-    [View Product](/Products?product_id=LC-0017)
+    [View Product](/products/LC-0017)
 
     **Refrigerated Benchtop Centrifuge** by ApexBio Labs - $9,691.35
     A premium option with 25,000 x g max speed for more demanding applications.
-    [View Product](/Products?product_id=LC-0011)
+    [View Product](/products/LC-0011)
 
     Would you like more details on any of these, or should I look for something in a specific price range?"
 
