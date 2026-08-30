@@ -192,15 +192,19 @@ def home_content():
 
 def products_content():
     ui.label('Product Catalog').style(f'font-size:24px;font-weight:700;color:{TEXT};margin-bottom:8px;')
-    with ui.row().classes('w-full gap-2').style('margin-bottom:12px;'):
-        search = ui.input(placeholder='Search products...').style('flex:1;')
-        search_btn = ui.button(icon='search').classes('ab')
+
+    page = {'val': 0}
+    per_page = 12
+    all_products = search_products(limit=200)
+    total = len(all_products)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
     container = ui.column()
 
     def render(e=None):
         container.clear()
-        q = search.value.strip() if search.value else None
-        products = search_products(query=q, limit=50)
+        start = page['val'] * per_page
+        products = all_products[start:start + per_page]
         with container:
             if not products:
                 ui.label('No products found.').style(f'color:{TEXT};padding:20px;')
@@ -221,8 +225,21 @@ def products_content():
                                         ui.notify(f'Added {pid} to cart!', type='positive')
                                     ui.button('add', on_click=add_h).classes('ab')
 
-    search.on('keydown.enter', render)
-    search_btn.on_click(render)
+    def go_prev(e=None):
+        if page['val'] > 0:
+            page['val'] -= 1
+            render()
+
+    def go_next(e=None):
+        if page['val'] < total_pages - 1:
+            page['val'] += 1
+            render()
+
+    with ui.row().classes('w-full justify-center items-center gap-4').style('margin-top:12px;'):
+        ui.button(icon='chevron_left', on_click=go_prev).style(f'background:{ACCENT};color:white;border-radius:50%;')
+        ui.label(f'{page["val"] + 1} / {total_pages}').style(f'color:{TEXT};')
+        ui.button(icon='chevron_right', on_click=go_next).style(f'background:{ACCENT};color:white;border-radius:50%;')
+
     render()
 
 
