@@ -272,7 +272,7 @@ def product_detail_page(product_id):
             ui.label('Product not found').style(f'color:{TEXT};padding:40px;')
             return
         ui.link('← Back', '/products').style(f'color:{TEXT};text-decoration:none;')
-        ui.image(get_product_image(product['id'])).style('width:100%;max-width:400px;border-radius:8px;margin-top:8px;')
+        ui.image(get_product_image(product['id'])).style('width:100%;max-width:250px;border-radius:8px;margin-top:8px;')
         ui.label(product['product_name']).style(f'font-size:24px;font-weight:700;color:{TEXT};margin-top:12px;')
         ui.label(f"${product['price_usd']:,.2f}").style(f'font-size:20px;font-weight:700;color:{TEXT};')
         ui.label(product.get('specifications', '')).style(f'color:{TEXT};font-size:14px;white-space:pre-wrap;margin-top:8px;')
@@ -280,7 +280,7 @@ def product_detail_page(product_id):
         def add_h(e=None):
             db_add_to_cart(SID, product_id, int(qty.value))
             ui.notify(f'Added {int(qty.value)}x to cart!', type='positive')
-        ui.button('add', on_click=add_h).classes('ab').style('width:100%;')
+        ui.button('add', on_click=add_h).classes('ab')
     page_template(detail)
 
 @ui.page('/cart')
