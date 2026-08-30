@@ -30,6 +30,35 @@ ACCENT = '#444444'
 SID = "aifinder_session"
 
 
+def save_chat_history(role, text, is_html=False):
+    """Save chat history to server-side JSON file."""
+    import json
+    history_file = os.path.join(os.path.dirname(__file__), '.chat_history.json')
+    try:
+        history = []
+        if os.path.exists(history_file):
+            with open(history_file, 'r') as f:
+                history = json.load(f)
+        history.append({'role': role, 'text': text, 'isHtml': is_html})
+        with open(history_file, 'w') as f:
+            json.dump(history, f)
+    except Exception:
+        pass
+
+
+def load_chat_history():
+    """Load chat history from server-side JSON file."""
+    import json
+    history_file = os.path.join(os.path.dirname(__file__), '.chat_history.json')
+    try:
+        if os.path.exists(history_file):
+            with open(history_file, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+
 def md_to_html(text):
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2" target="_blank" style="color:#0066cc;">\1</a>', text)
@@ -120,9 +149,10 @@ def page_template(left_fn, extra_css=''):
                         with ui.column().classes('max-w-[80%]'):
                             ui.label(text).style(f'background:{ACCENT};padding:10px 14px;border-radius:12px;color:white;font-size:14px;line-height:1.4;text-align:right;')
                         ui.avatar(icon='person', color='#888', text_color='white', size='sm')
-                ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"user",text:{repr(text)},isHtml:false}}])));')
             except Exception:
                 page_alive = False
+        # Save user message to server
+        save_chat_history('user', text)
 
         # Show thinking animation
         thinking = None
@@ -142,11 +172,8 @@ def page_template(left_fn, extra_css=''):
         except Exception as ex:
             response = f"Error: {str(ex)[:100]}"
 
-        # Save to localStorage (always runs)
-        try:
-            ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"assistant",text:{repr(response)},isHtml:true}}])));')
-        except Exception:
-            pass
+        # Save to server (always runs)
+        save_chat_history('assistant', response, is_html=True)
 
         # Update UI if page is still alive
         if page_alive:
@@ -172,31 +199,31 @@ def page_template(left_fn, extra_css=''):
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
 
-    # Only show welcome if no history, otherwise render history
-    ui.run_javascript('''
-        const saved = localStorage.getItem("chat_history");
-        const msgsEl = document.querySelector("[class*='flex-grow']");
-        if (saved && JSON.parse(saved).length > 0 && msgsEl) {
-            const welcomeEl = document.querySelector("[data-welcome]");
-            if (welcomeEl) welcomeEl.style.display = "none";
-            const history = JSON.parse(saved);
-            history.forEach(m => {
-                const isUser = m.role === "user";
-                const bg = isUser ? "#444444" : "white";
-                const color = isUser ? "white" : "#555555";
-                const avatarBg = isUser ? "#888" : "#444444";
-                const avatar = isUser ? "\\u{1F464}" : "\\u{1F916}";
-                const flexDir = isUser ? "row-reverse" : "row";
-                const html = `
-                    <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px;flex-direction:${flexDir};">
-                        <div style="width:32px;height:32px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${avatar}</div>
-                        <div style="background:${bg};padding:10px 14px;border-radius:12px;color:${color};font-size:14px;line-height:1.4;max-width:80%;">${m.isHtml ? m.text : m.text}</div>
-                    </div>`;
-                msgsEl.insertAdjacentHTML("beforeend", html);
-            });
-            msgsEl.scrollTop = msgsEl.scrollHeight;
-        }
-    ''')
+    # Load history from server and render
+    history = load_chat_history()
+    if history:
+        try:
+            # Hide welcome message
+            welcome_row = msgs.element(0)
+            if welcome_row:
+                welcome_row.delete()
+        except Exception:
+            pass
+        # Render history
+        for m in history:
+            is_user = m.get('role') == 'user'
+            bg = ACCENT if is_user else 'white'
+            color = 'white' if is_user else TEXT
+            avatar_bg = '#888' if is_user else ACCENT
+            avatar = 'person' if is_user else 'smart_toy'
+            flex_dir = 'justify-end' if is_user else ''
+            with msgs:
+                with ui.row().classes(f'items-start gap-2 mb-3 {flex_dir}'):
+                    ui.avatar(icon=avatar, color=avatar_bg, text_color='white', size='sm')
+                    if m.get('isHtml'):
+                        ui.html(f'<div style="background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;">{m["text"]}</div>')
+                    else:
+                        ui.label(m['text']).style(f'background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;')
 
     # Footer
     ui.html(f'<div style="text-align:center;padding:10px 0;font-size:11px;color:{TEXT};background:{BG};position:fixed;bottom:0;width:100%;z-index:10;">&copy; 2026 AIFinder. All rights reserved.</div>')
