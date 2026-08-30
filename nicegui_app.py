@@ -172,12 +172,29 @@ def page_template(left_fn, extra_css=''):
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
 
-    # Only show welcome if no history
+    # Only show welcome if no history, otherwise render history
     ui.run_javascript('''
         const saved = localStorage.getItem("chat_history");
-        if (saved && JSON.parse(saved).length > 0) {
+        const msgsEl = document.querySelector("[class*='flex-grow']");
+        if (saved && JSON.parse(saved).length > 0 && msgsEl) {
             const welcomeEl = document.querySelector("[data-welcome]");
-            if (welcomeEl) welcomeEl.remove();
+            if (welcomeEl) welcomeEl.style.display = "none";
+            const history = JSON.parse(saved);
+            history.forEach(m => {
+                const isUser = m.role === "user";
+                const bg = isUser ? "#444444" : "white";
+                const color = isUser ? "white" : "#555555";
+                const avatarBg = isUser ? "#888" : "#444444";
+                const avatar = isUser ? "\\u{1F464}" : "\\u{1F916}";
+                const flexDir = isUser ? "row-reverse" : "row";
+                const html = `
+                    <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px;flex-direction:${flexDir};">
+                        <div style="width:32px;height:32px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${avatar}</div>
+                        <div style="background:${bg};padding:10px 14px;border-radius:12px;color:${color};font-size:14px;line-height:1.4;max-width:80%;">${m.isHtml ? m.text : m.text}</div>
+                    </div>`;
+                msgsEl.insertAdjacentHTML("beforeend", html);
+            });
+            msgsEl.scrollTop = msgsEl.scrollHeight;
         }
     ''')
 
