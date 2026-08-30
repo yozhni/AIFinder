@@ -111,9 +111,9 @@ def compare_products(product_name_1, product_name_2, brand_1=None, brand_2=None)
     results_2 = get_product_by_name(product_name_2, brand_2)
 
     if not results_1:
-        return {"error": f"I couldn't find a product matching '{product_name_1}'. Could you try a different name or search for something else?"}
+        return {"error": f"I couldn't find a product matching '{product_name_1}'. Would you try something else?"}
     if not results_2:
-        return {"error": f"I couldn't find a product matching '{product_name_2}'. Could you try a different name or search for something else?"}
+        return {"error": f"I couldn't find a product matching '{product_name_2}'. Would you try something else?"}
 
     return {
         "product_1": results_1[0],

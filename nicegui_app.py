@@ -46,17 +46,7 @@ def md_to_html(text):
 
 def get_product_image(product_id):
     cloudinary_url = f"{CLOUDINARY_BASE}/{product_id}{IMAGE_EXT}"
-    try:
-        import urllib.request, urllib.error
-        req = urllib.request.Request(cloudinary_url, method="HEAD")
-        urllib.request.urlopen(req, timeout=5, context=_SSL_CTX)
-        return cloudinary_url
-    except (urllib.error.URLError, OSError):
-        pass
-    local_path = os.path.join(IMAGES_DIR, f"{product_id}.webp")
-    if os.path.exists(local_path):
-        return local_path
-    return PLACEHOLDER_IMG
+    return cloudinary_url
 
 
 COMMON_CSS = f'''
@@ -66,6 +56,21 @@ COMMON_CSS = f'''
     body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
 </style>
 '''
+
+
+def page_header():
+    """Common header with nav."""
+    nav_bar()
+
+
+def page_footer():
+    """Common footer with copyright."""
+    ui.html(f'''
+    <div style="text-align:center; padding:10px 0; font-size:11px; color:{TEXT};
+                background:{BG}; position:fixed; bottom:0; width:100%; z-index:10;">
+        &copy; 2026 AIFinder. All rights reserved.
+    </div>
+    ''')
 
 
 def nav_bar():
@@ -298,26 +303,54 @@ def index():
 @ui.page('/products')
 def products_page():
     ui.add_head_html(COMMON_CSS)
-    nav_bar()
+    page_header()
 
     with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
         # Main content
         with ui.column().style('flex: 65; padding: 16px; overflow-y: auto;'):
             ui.label('Product Catalog').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 0 0 8px 0;')
 
-            categories = ['All'] + get_categories()
-            brands = ['All'] + get_brands()
-            price_range = get_price_range()
-
-            with ui.row().classes('w-full gap-4 items-end').style('padding: 0 0 12px 0;'):
-                category_select = ui.select(options=categories, value='All', label='Category').style('flex: 1;')
-                brand_select = ui.select(options=brands, value='All', label='Brand').style('flex: 1;')
-                search_input = ui.input(placeholder='Search products...', label='Search').style('flex: 1;')
+            # Search only
+            search_input = ui.input(placeholder='Search products...').style('width: 100%; margin-bottom: 12px;')
 
             products_container = ui.column().classes('w-full')
 
+            def render_products(e=None):
+                products_container.clear()
+                query = search_input.value.strip() if search_input.value else None
+
+                products = search_products(query=query, limit=50)
+
+                with products_container:
+                    if not products:
+                        ui.label('No products found.').style(f'color: {TEXT}; padding: 20px;')
+                        return
+
+                    for i in range(0, len(products), 4):
+                        with ui.row().classes('w-full gap-3').style('margin-bottom: 12px;'):
+                            for j in range(4):
+                                if i + j < len(products):
+                                    p = products[i + j]
+                                    with ui.card().style('flex: 1; background: white; border-radius: 8px; padding: 8px; border: none;'):
+                                        ui.image(get_product_image(p['id'])).style('width: 100%; height: 100px; object-fit: contain; border-radius: 6px;')
+                                        ui.label(p['product_name']).style(f'font-weight: 600; font-size: 12px; color: {TEXT}; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;')
+                                        ui.label(f"${p['price_usd']:,.2f}").style(f'font-weight: 700; font-size: 13px; color: {TEXT};')
+                                        with ui.row().classes('w-full gap-1'):
+                                            ui.link('View', f'/products/{p["id"]}').style(
+                                                f'background: {ACCENT}; color: white; padding: 4px 12px; border-radius: 6px; text-decoration: none; font-size: 11px; flex: 1; text-align: center;'
+                                            )
+                                            def add_handler(pid=p['id'], e=None):
+                                                db_add_to_cart(get_session_id(), pid, 1)
+                                                ui.notify(f'Added {pid} to cart!', type='positive')
+                                            ui.button('Add', on_click=add_handler).style(
+                                                f'background: {ACCENT}; color: white; border-radius: 6px; font-size: 11px; flex: 1; min-height: 28px;'
+                                            )
+
+            search_input.on('value-change', render_products)
+            render_products()
+
         # Chatbot sidebar
-        with ui.column().style(f'flex: 35; background: {BG}; border-left: 1px solid #bbb; padding: 0;'):
+        with ui.column().style(f'flex: 35; background: {BG}; padding: 0;'):
             ui.html(f'''
             <div style="padding:16px 16px 8px 16px;">
                 <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
@@ -331,58 +364,7 @@ def products_page():
             ''')
             chatbot_js()
 
-    def render_products(e=None):
-        products_container.clear()
-        cat = category_select.value if category_select.value != 'All' else None
-        brand = brand_select.value if brand_select.value != 'All' else None
-        query = search_input.value.strip() if search_input.value else None
-
-        products = search_products(
-            query=query, category=cat, brand=brand,
-            min_price=price_range['min'], max_price=price_range['max'], limit=50
-        )
-
-        with products_container:
-            ui.label(f'{len(products)} products found').style(f'color: {TEXT}; font-size: 14px; padding: 4px 0;')
-
-            if not products:
-                ui.label('No products found matching your criteria.').style(f'color: {TEXT}; padding: 20px;')
-                return
-
-            for i in range(0, len(products), 3):
-                with ui.row().classes('w-full gap-4').style('margin-bottom: 16px;'):
-                    for j in range(3):
-                        if i + j < len(products):
-                            p = products[i + j]
-                            with ui.card().style('flex: 1; background: white; border-radius: 8px; padding: 12px;'):
-                                ui.image(get_product_image(p['id'])).style('width: 100%; height: 150px; object-fit: contain;')
-                                ui.label(p['product_name']).style(f'font-weight: 600; font-size: 14px; color: {TEXT}; margin-top: 8px;')
-                                ui.label(f"{p['brand']} | {p['category']}").style(f'font-size: 12px; color: {TEXT};')
-                                ui.label(f"${p['price_usd']:,.2f}").style(f'font-weight: 700; font-size: 16px; color: {TEXT}; margin-top: 4px;')
-
-                                props = []
-                                if p.get('refrigerated'):
-                                    props.append('Refrigerated')
-                                if p.get('sterile'):
-                                    props.append('Sterile')
-                                if props:
-                                    ui.label(' | '.join(props)).style(f'font-size: 11px; color: {TEXT};')
-
-                                with ui.row().classes('w-full gap-2').style('margin-top: 8px;'):
-                                    ui.link('View', f'/products/{p["id"]}').style(
-                                        f'background: {ACCENT}; color: white; padding: 6px 16px; border-radius: 6px; text-decoration: none; font-size: 13px;'
-                                    )
-                                    def add_handler(pid=p['id'], e=None):
-                                        db_add_to_cart(get_session_id(), pid, 1)
-                                        ui.notify(f'Added {pid} to cart!', type='positive')
-                                    ui.button('Add to Cart', on_click=add_handler).style(
-                                        'background: #666; color: white; border-radius: 6px; font-size: 13px;'
-                                    )
-
-    category_select.on('value-change', render_products)
-    brand_select.on('value-change', render_products)
-    search_input.on('value-change', render_products)
-    render_products()
+    page_footer()
 
 
 # ── PRODUCT DETAIL ──────────────────────────────────────────────────
@@ -440,12 +422,11 @@ def product_detail_page_alt():
 @ui.page('/cart')
 def cart_page():
     ui.add_head_html(COMMON_CSS)
-    nav_bar()
+    page_header()
 
     session_id_cart = get_session_id()
 
     with ui.row().classes('w-full').style('height: calc(100vh - 80px);'):
-        # Main content
         with ui.column().style('flex: 65; padding: 16px; overflow-y: auto;'):
             ui.label('Shopping Cart').style(f'font-size: 24px; font-weight: 700; color: {TEXT}; padding: 0 0 8px 0;')
 
@@ -456,12 +437,12 @@ def cart_page():
             else:
                 for item in cart:
                     with ui.row().classes('w-full items-center gap-4').style(f'background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;'):
-                        ui.image(get_product_image(item['product_id'])).style('width: 60px; height: 60px; object-fit: contain; border-radius: 4px;')
+                        ui.image(get_product_image(item['product_id'])).style('width: 60px; height: 60px; object-fit: contain; border-radius: 6px;')
                         with ui.column().style('flex: 2;'):
                             ui.label(item['product_name']).style(f'font-weight: 600; color: {TEXT};')
                             ui.label(f"{item['brand']} | {item['product_id']}").style(f'font-size: 12px; color: {TEXT};')
                         ui.label(f"${item['price_usd']:,.2f}").style(f'font-weight: 600; color: {TEXT};')
-                        qty = ui.number(value=item['quantity'], min=1, label='Qty').style('width: 80px;')
+                        qty = ui.number(value=item['quantity'], min=1).style('width: 80px;')
                         def update_handler(cid=item['id'], qi=qty, e=None):
                             update_cart_item(cid, int(qi.value))
                         qty.on('value-change', update_handler)
@@ -470,8 +451,7 @@ def cart_page():
                         ui.button(icon='delete', on_click=remove_handler).style('color: red;')
 
                 total = get_cart_total(session_id_cart)
-                ui.separator().style('margin: 12px 0;')
-                ui.label(f'Total: ${total:,.2f}').style(f'font-size: 20px; font-weight: 700; color: {TEXT};')
+                ui.label(f'Total: ${total:,.2f}').style(f'font-size: 20px; font-weight: 700; color: {TEXT}; margin-top: 12px;')
 
                 with ui.row().classes('w-full gap-4').style('margin-top: 12px;'):
                     ui.button('Clear Cart', on_click=lambda: clear_cart(session_id_cart)).style('background: #888; color: white; border-radius: 8px;')
@@ -481,8 +461,7 @@ def cart_page():
                             ui.notify(f'Order #{oid} placed!', type='positive')
                     ui.button('Checkout', on_click=checkout).style(f'background: {ACCENT}; color: white; border-radius: 8px;')
 
-        # Chatbot sidebar
-        with ui.column().style('flex: 35; background: {BG}; border-left: 1px solid #bbb; padding: 0;'):
+        with ui.column().style(f'flex: 35; background: {BG}; padding: 0;'):
             ui.html(f'''
             <div style="padding:16px 16px 8px 16px;">
                 <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
@@ -496,12 +475,14 @@ def cart_page():
             ''')
             chatbot_js()
 
+    page_footer()
+
 
 # ── ORDERS PAGE ─────────────────────────────────────────────────────
 @ui.page('/orders')
 def orders_page():
     ui.add_head_html(COMMON_CSS)
-    nav_bar()
+    page_header()
 
     session_id_ord = get_session_id()
 
@@ -525,7 +506,7 @@ def orders_page():
                             for item in order['items']:
                                 ui.label(f"- {item['product_id']} x {item['quantity']} @ ${item['price']:,.2f}").style(f'color: {TEXT};')
 
-        with ui.column().style('flex: 35; background: {BG}; border-left: 1px solid #bbb; padding: 0;'):
+        with ui.column().style(f'flex: 35; background: {BG}; padding: 0;'):
             ui.html(f'''
             <div style="padding:16px 16px 8px 16px;">
                 <div style="font-weight:600; font-size:18px; color:{TEXT};">AIFinder</div>
@@ -538,6 +519,8 @@ def orders_page():
             </div>
             ''')
             chatbot_js()
+
+    page_footer()
 
 
 app.add_static_files('/static', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static'))
