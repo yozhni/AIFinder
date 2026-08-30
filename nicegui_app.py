@@ -61,11 +61,12 @@ def page_template(left_fn, extra_css=''):
             width:42px; height:42px; background:{ACCENT}; color:white; border:none;
             border-radius:50%; cursor:pointer; font-size:16px; flex-shrink:0;
         }}
-        a.vl {{ background:{ACCENT} !important; color:white !important; padding:4px 12px !important; border-radius:6px !important;
-                text-decoration:none !important; font-size:11px !important; display:inline-block !important; }}
-        button.ab, .q-btn.ab, .q-btn.ab:hover, .q-btn.ab::before {{
+        a.vl {{ background:{ACCENT} !important; color:white !important; padding:6px 16px !important; border-radius:6px !important;
+                text-decoration:none !important; font-size:12px !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; min-width:70px !important; }}
+        .q-btn.ab, .q-btn.ab:hover, .q-btn.ab::before {{
             background: {ACCENT} !important; color: white !important; border-radius: 6px !important;
-            font-size: 11px !important; min-height: 28px !important; min-width: 60px !important;
+            font-size: 12px !important; min-height: 32px !important; min-width: 70px !important;
+            padding: 6px 16px !important;
         }}
         {extra_css}
     </style>''')
@@ -104,23 +105,30 @@ def page_template(left_fn, extra_css=''):
         if not text:
             return
         inp.value = ''
-        # Disable input while thinking
-        inp.disable()
-        send.disable()
+        try:
+            inp.disable()
+            send.disable()
+        except Exception:
+            return
         # Show user message
-        with msgs:
-            with ui.row().classes('items-start gap-2 mb-3 justify-end'):
-                with ui.column().classes('max-w-[80%]'):
-                    ui.label(text).style(f'background:{ACCENT};padding:10px 14px;border-radius:12px;color:white;font-size:14px;line-height:1.4;text-align:right;')
-                ui.avatar(icon='person', color='#888', text_color='white', size='sm')
-        # Save user message to localStorage
-        ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"user",text:{repr(text)},isHtml:false}}])));')
+        try:
+            with msgs:
+                with ui.row().classes('items-start gap-2 mb-3 justify-end'):
+                    with ui.column().classes('max-w-[80%]'):
+                        ui.label(text).style(f'background:{ACCENT};padding:10px 14px;border-radius:12px;color:white;font-size:14px;line-height:1.4;text-align:right;')
+                    ui.avatar(icon='person', color='#888', text_color='white', size='sm')
+            ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"user",text:{repr(text)},isHtml:false}}])));')
+        except Exception:
+            return
         # Show thinking animation
         thinking = None
-        with msgs:
-            with ui.row().classes('items-start gap-2 mb-3') as row:
-                ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
-                thinking = ui.label('thinking...').style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;')
+        try:
+            with msgs:
+                with ui.row().classes('items-start gap-2 mb-3'):
+                    ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                    thinking = ui.label('thinking...').style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;')
+        except Exception:
+            return
         try:
             response = await asyncio.to_thread(get_llm_response, SID, text)
             response = md_to_html(response)
@@ -137,11 +145,9 @@ def page_template(left_fn, extra_css=''):
                 with ui.row().classes('items-start gap-2 mb-3'):
                     ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
                     ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">{response}</div>')
+            ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"assistant",text:{repr(response)},isHtml:true}}])));')
         except Exception:
             pass
-        # Save bot response to localStorage
-        ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"assistant",text:{repr(response)},isHtml:true}}])));')
-        # Re-enable input
         try:
             inp.enable()
             send.enable()
@@ -203,7 +209,7 @@ def products_content():
                                     def add_h(pid=p['id'], e=None):
                                         db_add_to_cart(SID, pid, 1)
                                         ui.notify(f'Added {pid} to cart!', type='positive')
-                                    ui.button('Add', on_click=add_h).classes('ab')
+                                    ui.button('ADD', on_click=add_h).classes('ab')
 
     search.on('value-change', render)
     render()
