@@ -104,56 +104,70 @@ def page_template(left_fn, extra_css=''):
         text = inp.value.strip() if inp.value else ''
         if not text:
             return
-        inp.value = ''
+        page_alive = True
         try:
+            inp.value = ''
             inp.disable()
             send.disable()
         except Exception:
-            return
+            page_alive = False
+
         # Show user message
-        try:
-            with msgs:
-                with ui.row().classes('items-start gap-2 mb-3 justify-end'):
-                    with ui.column().classes('max-w-[80%]'):
-                        ui.label(text).style(f'background:{ACCENT};padding:10px 14px;border-radius:12px;color:white;font-size:14px;line-height:1.4;text-align:right;')
-                    ui.avatar(icon='person', color='#888', text_color='white', size='sm')
-            ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"user",text:{repr(text)},isHtml:false}}])));')
-        except Exception:
-            return
+        if page_alive:
+            try:
+                with msgs:
+                    with ui.row().classes('items-start gap-2 mb-3 justify-end'):
+                        with ui.column().classes('max-w-[80%]'):
+                            ui.label(text).style(f'background:{ACCENT};padding:10px 14px;border-radius:12px;color:white;font-size:14px;line-height:1.4;text-align:right;')
+                        ui.avatar(icon='person', color='#888', text_color='white', size='sm')
+                ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"user",text:{repr(text)},isHtml:false}}])));')
+            except Exception:
+                page_alive = False
+
         # Show thinking animation
         thinking = None
-        try:
-            with msgs:
-                with ui.row().classes('items-start gap-2 mb-3'):
-                    ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
-                    thinking = ui.label('thinking...').style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;')
-        except Exception:
-            return
+        if page_alive:
+            try:
+                with msgs:
+                    with ui.row().classes('items-start gap-2 mb-3'):
+                        ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                        thinking = ui.label('thinking...').style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;')
+            except Exception:
+                page_alive = False
+
+        # Call LLM (always runs, even if page is gone)
         try:
             response = await asyncio.to_thread(get_llm_response, SID, text)
             response = md_to_html(response)
         except Exception as ex:
             response = f"Error: {str(ex)[:100]}"
-        # Remove thinking, show response
+
+        # Save to localStorage (always runs)
         try:
-            if thinking:
-                thinking.delete()
-        except Exception:
-            pass
-        try:
-            with msgs:
-                with ui.row().classes('items-start gap-2 mb-3'):
-                    ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
-                    ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">{response}</div>')
             ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"assistant",text:{repr(response)},isHtml:true}}])));')
         except Exception:
             pass
-        try:
-            inp.enable()
-            send.enable()
-            inp.focus()
-        except Exception:
-            pass
+
+        # Update UI if page is still alive
+        if page_alive:
+            try:
+                if thinking:
+                    thinking.delete()
+            except Exception:
+                pass
+            try:
+                with msgs:
+                    with ui.row().classes('items-start gap-2 mb-3'):
+                        ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                        ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">{response}</div>')
+            except Exception:
+                pass
+            try:
+                inp.enable()
+                send.enable()
+                inp.focus()
+            except Exception:
+                pass
 
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
