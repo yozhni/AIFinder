@@ -61,12 +61,12 @@ def page_template(left_fn, extra_css=''):
             width:42px; height:42px; background:{ACCENT}; color:white; border:none;
             border-radius:50%; cursor:pointer; font-size:16px; flex-shrink:0;
         }}
-        a.vl {{ background:{ACCENT} !important; color:white !important; padding:6px 16px !important; border-radius:6px !important;
-                text-decoration:none !important; font-size:12px !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; min-width:70px !important; }}
+        a.vl {{ background:{ACCENT} !important; color:white !important; padding:0 16px !important; border-radius:6px !important;
+                text-decoration:none !important; font-size:12px !important; display:inline-flex !important; align-items:center !important; justify-content:center !important; min-width:70px !important; height:32px !important; box-sizing:border-box !important; }}
         .q-btn.ab, .q-btn.ab:hover, .q-btn.ab::before {{
             background: {ACCENT} !important; color: white !important; border-radius: 6px !important;
-            font-size: 12px !important; min-height: 32px !important; min-width: 70px !important;
-            padding: 6px 16px !important; text-transform: none !important;
+            font-size: 12px !important; height: 32px !important; min-width: 70px !important;
+            padding: 0 16px !important; text-transform: none !important; box-sizing: border-box !important;
         }}
         {extra_css}
     </style>''')
