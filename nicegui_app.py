@@ -213,7 +213,7 @@ def products_content():
                                 ui.label(p['product_name']).style(f'font-weight:600;font-size:12px;color:{TEXT};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;')
                                 ui.label(f"${p['price_usd']:,.2f}").style(f'font-weight:700;font-size:13px;color:{TEXT};')
                                 with ui.row().classes('w-full gap-1'):
-                                    ui.link('View', f'/products/{p["id"]}').classes('vl')
+                                    ui.link('view', f'/products/{p["id"]}').classes('vl')
                                     def add_h(pid=p['id'], e=None):
                                         db_add_to_cart(SID, pid, 1)
                                         ui.notify(f'Added {pid} to cart!', type='positive')
