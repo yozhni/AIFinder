@@ -209,7 +209,7 @@ def products_content():
                                     def add_h(pid=p['id'], e=None):
                                         db_add_to_cart(SID, pid, 1)
                                         ui.notify(f'Added {pid} to cart!', type='positive')
-                                    ui.button('ADD', on_click=add_h).classes('ab')
+                                    ui.button('add', on_click=add_h).classes('ab')
 
     search.on('value-change', render)
     render()
@@ -239,12 +239,12 @@ def cart_content():
     total = get_cart_total(SID)
     ui.label(f'Total: ${total:,.2f}').style(f'font-size:20px;font-weight:700;color:{TEXT};margin-top:12px;')
     with ui.row().classes('w-full gap-4').style('margin-top:12px;'):
-        ui.button('Clear Cart', on_click=lambda: clear_cart(SID)).style('background:#888;color:white;border-radius:8px;')
+        ui.button('Clear', on_click=lambda: clear_cart(SID)).classes('ab')
         def checkout():
             oid = create_order(SID)
             if oid:
                 ui.notify(f'Order #{oid} placed!', type='positive')
-        ui.button('Checkout', on_click=checkout).style(f'background:{ACCENT};color:white;border-radius:8px;')
+        ui.button('Checkout', on_click=checkout).classes('ab')
 
 
 # ── PAGES ───────────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ def product_detail_page(product_id):
         def add_h(e=None):
             db_add_to_cart(SID, product_id, int(qty.value))
             ui.notify(f'Added {int(qty.value)}x to cart!', type='positive')
-        ui.button('Add to Cart', on_click=add_h).style(f'background:{ACCENT};color:white;border-radius:8px;width:100%;')
+        ui.button('add', on_click=add_h).classes('ab').style('width:100%;')
     page_template(detail)
 
 @ui.page('/cart')
