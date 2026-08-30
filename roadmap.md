@@ -803,3 +803,72 @@ with open("config.yaml.enc", "rb") as f:
 | 6. Setup & Docs | 2 | 15 min |
 | 7. Testing | 5 | 20 min |
 | **Total** | **27** | **~3 hours** |
+
+---
+
+## Fixed Bugs & Changes
+
+### NiceGUI Frontend (nicegui_app.py)
+
+- [x] **Chatbot not answering** — Fixed async handler with `asyncio.to_thread()` instead of `asyncio.run()`
+- [x] **Chatbot history lost on page switch** — Server-side JSON file storage (`.chat_history.json`) instead of localStorage
+- [x] **Chatbot thinking animation** — Added "thinking..." label while LLM processes, disabled input during thinking
+- [x] **Double submit prevention** — Input and button disabled while bot thinks, re-enabled after response
+- [x] **Chat continues if user navigates away** — LLM call continues, response saved to server, UI updates only if page alive
+- [x] **Product links 404** — Converted `/Products?product_id=X` to `/products/X` in LLM prompt and markdown converter
+- [x] **Product search not working** — Replaced search with pagination (12 products/page, prev/next buttons)
+- [x] **Cart buttons not working** — Added `ui.navigate.reload()` after clear/remove operations
+- [x] **View/Add buttons different sizes** — Matched height (32px), padding, min-width exactly
+- [x] **Button text auto-capitalized** — Added `text-transform: none !important` to override Quasar
+- [x] **All buttons lowercase** — "view", "add", "clear", "checkout"
+- [x] **Send button blue** — Forced grey with `.q-btn` selector and `!important`
+- [x] **Grey lines removed** — `.q-splitter__before, .q-splitter__after { border: none !important; }`
+- [x] **Product image too large** — Reduced from 400px to 250px max-width
+- [x] **Add button too wide on product page** — Removed `width:100%`
+- [x] **Welcome message persistence** — Server-side storage, hidden if history exists
+- [x] **Chatbot persistence across pages** — Server-side JSON file, loaded on page init
+- [x] **Common page template** — `page_template()` function for all pages (header, 65/35 split, chatbot, footer)
+
+### Image Loading
+
+- [x] **SSL certificate error** — Added SSL bypass for Cloudinary HEAD requests
+- [x] **Images not loading** — Simplified to return Cloudinary URL directly (no HEAD check)
+- [x] **Placeholder fallback** — Cloudinary → local → placeholder logic
+
+### Streamlit Pages
+
+- [x] **`on_error` not supported** — Removed from all `st.image()` calls
+- [x] **Floating chat button** — Used `st.components.v1.html` iframe for fixed positioning
+- [x] **Sidebar hidden** — CSS to hide hamburger menu and sidebar navigation
+- [x] **`ui.query_params` not available** — Used JavaScript redirect for `/Products` route
+
+### Configuration
+
+- [x] **API key in config.yaml** — Moved to environment variable `${GOOGLE_API_KEY}`
+- [x] **`.env` file created** — Contains actual keys, gitignored
+- [x] **`.env.example` created** — Template without secrets
+- [x] **Config env var resolution** — Added `_resolve_env_vars()` to config.py
+
+### Design
+
+- [x] **Background color** — `#D3D3D3` everywhere
+- [x] **Text color** — `#555555` everywhere
+- [x] **No grey lines** — Removed all borders from nav, splitter, copyright
+- [x] **Copyright at bottom** — Fixed position, small font
+- [x] **Navigation right-aligned** — Home, Products, Cart links
+- [x] **Image rounded corners** — `border-radius: 12px`
+- [x] **Chat input styling** — White background, rounded corners, grey border
+- [x] **Chatbot on all pages** — Shared template with chatbot sidebar (35%)
+- [x] **LLM prompt fixed** — Use `/products/LC-XXXX` format for links
+
+### Deployment
+
+- [x] **Makefile updated** — Added `run-gui` and `run-gui-open` commands
+- [x] **Process cleanup** — Makefile kills old processes before starting
+- [x] **Favicon** — microscope.png as browser tab icon
+- [x] **Static files** — `app.add_static_files()` for images
+
+### Database
+
+- [x] **Friendly error messages** — "I couldn't find a product matching X. Would you try something else?"
+- [x] **Session ID consistency** — Fixed session ID across all pages for cart persistence

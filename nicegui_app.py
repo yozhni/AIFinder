@@ -60,9 +60,8 @@ def load_chat_history():
 
 
 def md_to_html(text):
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2" target="_blank" style="color:#0066cc;">\1</a>', text)
-    return text.replace('\n', '<br>')
+    """Pass through markdown for ui.markdown renderer."""
+    return text
 
 
 def get_product_image(pid):
@@ -186,7 +185,9 @@ def page_template(left_fn, extra_css=''):
                 with msgs:
                     with ui.row().classes('items-start gap-2 mb-3'):
                         ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
-                        ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">{response}</div>')
+                        ui.markdown(response).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
+                # Scroll to bottom
+                ui.run_javascript('document.querySelector("[class*=flex-grow]").scrollTop = 999999;')
             except Exception:
                 pass
             try:
@@ -199,31 +200,32 @@ def page_template(left_fn, extra_css=''):
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
 
-    # Load history from server and render
-    history = load_chat_history()
-    if history:
-        try:
-            # Hide welcome message
-            welcome_row = msgs.element(0)
-            if welcome_row:
-                welcome_row.delete()
-        except Exception:
-            pass
-        # Render history
-        for m in history:
-            is_user = m.get('role') == 'user'
-            bg = ACCENT if is_user else 'white'
-            color = 'white' if is_user else TEXT
-            avatar_bg = '#888' if is_user else ACCENT
-            avatar = 'person' if is_user else 'smart_toy'
-            flex_dir = 'justify-end' if is_user else ''
-            with msgs:
-                with ui.row().classes(f'items-start gap-2 mb-3 {flex_dir}'):
-                    ui.avatar(icon=avatar, color=avatar_bg, text_color='white', size='sm')
-                    if m.get('isHtml'):
-                        ui.html(f'<div style="background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;">{m["text"]}</div>')
-                    else:
-                        ui.label(m['text']).style(f'background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;')
+    # Load history only once per page session
+    history_key = f'_history_loaded_{id(msgs)}'
+    if history_key not in dir(ui.context):
+        history = load_chat_history()
+        if history:
+            try:
+                welcome_row = msgs.element(0)
+                if welcome_row:
+                    welcome_row.delete()
+            except Exception:
+                pass
+            for m in history:
+                is_user = m.get('role') == 'user'
+                bg = ACCENT if is_user else 'white'
+                color = 'white' if is_user else TEXT
+                avatar_bg = '#888' if is_user else ACCENT
+                avatar = 'person' if is_user else 'smart_toy'
+                flex_dir = 'justify-end' if is_user else ''
+                with msgs:
+                    with ui.row().classes(f'items-start gap-2 mb-3 {flex_dir}'):
+                        ui.avatar(icon=avatar, color=avatar_bg, text_color='white', size='sm')
+                        if m.get('isHtml'):
+                            ui.html(f'<div style="background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;">{m["text"]}</div>')
+                        else:
+                            ui.label(m['text']).style(f'background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;')
+        setattr(ui.context, history_key, True)
 
     # Footer
     ui.html(f'<div style="text-align:center;padding:10px 0;font-size:11px;color:{TEXT};background:{BG};position:fixed;bottom:0;width:100%;z-index:10;">&copy; 2026 AIFinder. All rights reserved.</div>')
@@ -237,19 +239,22 @@ def home_content():
 def products_content():
     ui.label('Product Catalog').style(f'font-size:24px;font-weight:700;color:{TEXT};margin-bottom:8px;')
 
-    page = {'val': 0}
-    per_page = 12
     all_products = search_products(limit=200)
+    per_page = 12
     total = len(all_products)
     total_pages = max(1, (total + per_page - 1) // per_page)
+
+    state = {'page': 0}
 
     container = ui.column()
 
     def render(e=None):
         container.clear()
-        start = page['val'] * per_page
+        p = state['page']
+        start = p * per_page
         products = all_products[start:start + per_page]
         with container:
+            ui.label(f'{p + 1} / {total_pages}').style(f'color:{TEXT};margin-bottom:8px;')
             if not products:
                 ui.label('No products found.').style(f'color:{TEXT};padding:20px;')
                 return
@@ -257,31 +262,31 @@ def products_content():
                 with ui.row().classes('w-full gap-3').style('margin-bottom:12px;'):
                     for j in range(4):
                         if i + j < len(products):
-                            p = products[i + j]
+                            pr = products[i + j]
                             with ui.card().style('flex:1;background:white;border-radius:8px;padding:8px;border:none;'):
-                                ui.image(get_product_image(p['id'])).style('width:100%;height:100px;object-fit:contain;border-radius:6px;')
-                                ui.label(p['product_name']).style(f'font-weight:600;font-size:12px;color:{TEXT};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;')
-                                ui.label(f"${p['price_usd']:,.2f}").style(f'font-weight:700;font-size:13px;color:{TEXT};')
+                                ui.image(get_product_image(pr['id'])).style('width:100%;height:100px;object-fit:contain;border-radius:6px;')
+                                ui.label(pr['product_name']).style(f'font-weight:600;font-size:12px;color:{TEXT};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;')
+                                ui.label(f"${pr['price_usd']:,.2f}").style(f'font-weight:700;font-size:13px;color:{TEXT};')
                                 with ui.row().classes('w-full gap-1'):
-                                    ui.link('view', f'/products/{p["id"]}').classes('vl')
-                                    def add_h(pid=p['id'], e=None):
+                                    ui.link('view', f'/products/{pr["id"]}').classes('vl')
+                                    def add_h(pid=pr['id'], e=None):
                                         db_add_to_cart(SID, pid, 1)
                                         ui.notify(f'Added {pid} to cart!', type='positive')
                                     ui.button('add', on_click=add_h).classes('ab')
 
     def go_prev(e=None):
-        if page['val'] > 0:
-            page['val'] -= 1
+        if state['page'] > 0:
+            state['page'] -= 1
             render()
 
     def go_next(e=None):
-        if page['val'] < total_pages - 1:
-            page['val'] += 1
+        if state['page'] < total_pages - 1:
+            state['page'] += 1
             render()
 
     with ui.row().classes('w-full justify-center items-center gap-4').style('margin-top:12px;'):
         ui.button(icon='chevron_left', on_click=go_prev).style(f'background:{ACCENT};color:white;border-radius:50%;')
-        ui.label(f'{page["val"] + 1} / {total_pages}').style(f'color:{TEXT};')
+        page_label = ui.label(f'{state["page"] + 1} / {total_pages}').style(f'color:{TEXT};')
         ui.button(icon='chevron_right', on_click=go_next).style(f'background:{ACCENT};color:white;border-radius:50%;')
 
     render()
@@ -334,22 +339,25 @@ def products_page():
 
 @ui.page('/products/{product_id}')
 def product_detail_page(product_id):
-    def detail():
-        product = get_product(product_id)
-        if not product:
-            ui.label('Product not found').style(f'color:{TEXT};padding:40px;')
-            return
-        ui.link('← Back', '/products').style(f'color:{TEXT};text-decoration:none;')
-        ui.image(get_product_image(product['id'])).style('width:100%;max-width:250px;border-radius:8px;margin-top:8px;')
-        ui.label(product['product_name']).style(f'font-size:24px;font-weight:700;color:{TEXT};margin-top:12px;')
-        ui.label(f"${product['price_usd']:,.2f}").style(f'font-size:20px;font-weight:700;color:{TEXT};')
-        ui.label(product.get('specifications', '')).style(f'color:{TEXT};font-size:14px;white-space:pre-wrap;margin-top:8px;')
-        qty = ui.number(value=1, min=1).style('width:100px;margin-top:12px;')
+    page_template(lambda: _product_detail_content(product_id))
+
+
+def _product_detail_content(product_id):
+    product = get_product(product_id)
+    if not product:
+        ui.label('Product not found').style(f'color:{TEXT};padding:40px;')
+        return
+    ui.link('← Back to Products', '/products').style(f'color:{TEXT};text-decoration:none;font-size:14px;')
+    ui.image(get_product_image(product['id'])).style('width:100%;max-width:250px;border-radius:8px;margin:16px 0;')
+    ui.label(product['product_name']).style(f'font-size:24px;font-weight:700;color:{TEXT};')
+    ui.label(f"${product['price_usd']:,.2f}").style(f'font-size:20px;font-weight:700;color:{TEXT};margin-top:8px;')
+    ui.label(product.get('specifications', '')).style(f'color:{TEXT};font-size:14px;white-space:pre-wrap;margin-top:12px;')
+    with ui.row().classes('w-full gap-4 items-center').style('margin-top:16px;'):
+        qty = ui.number(value=1, min=1).style('width:100px;')
         def add_h(e=None):
             db_add_to_cart(SID, product_id, int(qty.value))
             ui.notify(f'Added {int(qty.value)}x to cart!', type='positive')
         ui.button('add', on_click=add_h).classes('ab')
-    page_template(detail)
 
 @ui.page('/cart')
 def cart_page():

@@ -86,6 +86,10 @@ google:
   model: auto  # Auto-detects free flash model
   api_key: ${GOOGLE_API_KEY} # set key in .env
 
+# Link format
+links:
+  product: "/products/{product_id}"
+
 # LLM Settings
 llm:
   provider: ollama
@@ -110,7 +114,7 @@ llm:
     When users ask for products:
     - Always search the database first using tools
     - Present 3-5 options when possible
-    - Include links to product pages: /products/LC-XXXX
+    - Include links to product pages in format: [View Product](/products/LC-XXXX)
     - Explain the benefits of each product
     - Consider their specific requirements (budget, features, compatibility)
     - Provide clear comparisons when requested

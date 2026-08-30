@@ -12,6 +12,8 @@ from core.database import (
     save_message, load_history,
 )
 
+PRODUCT_LINK = get("links", "product")
+
 SYSTEM_PROMPT = get("llm", "system_prompt") or "You are a helpful sales assistant."
 OLLAMA_HOST = get("ollama", "host") or "http://localhost:11434"
 TEMPERATURE = get("llm", "temperature") or 0.7
@@ -246,7 +248,7 @@ def _format_tool_results(results):
                     lines.append(f"  Price: ${price:,.2f}")
                     if specs:
                         lines.append(f"  Specs: {specs}")
-                    lines.append(f"  [View Product](/Products?product_id={pid})")
+                    lines.append(f"  [View Product]({PRODUCT_LINK.format(product_id=pid)})")
                     lines.append("")
                 if len(products) > 5:
                     lines.append(f"I found {len(products) - 5} more products. Would you like me to show you more details on any of these?")
@@ -261,12 +263,12 @@ def _format_tool_results(results):
                 f"- Brand: {p1.get('brand', 'N/A')}\n"
                 f"- Price: ${price1:,.2f}\n"
                 f"- Specs: {p1.get('specifications', 'N/A')[:100]}\n"
-                f"- [View Product](/Products?product_id={p1.get('id', '')})\n\n"
+                f"- [View Product]({PRODUCT_LINK.format(product_id=p1.get('id', ''))})\n\n"
                 f"**{p2.get('product_name', 'N/A')}**\n"
                 f"- Brand: {p2.get('brand', 'N/A')}\n"
                 f"- Price: ${price2:,.2f}\n"
                 f"- Specs: {p2.get('specifications', 'N/A')[:100]}\n"
-                f"- [View Product](/Products?product_id={p2.get('id', '')})\n\n"
+                f"- [View Product]({PRODUCT_LINK.format(product_id=p2.get('id', ''))})\n\n"
                 f"Which one would you like to know more about?"
             )
         elif "success" in res:
