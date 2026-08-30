@@ -247,12 +247,12 @@ def cart_content():
     total = get_cart_total(SID)
     ui.label(f'Total: ${total:,.2f}').style(f'font-size:20px;font-weight:700;color:{TEXT};margin-top:12px;')
     with ui.row().classes('w-full gap-4').style('margin-top:12px;'):
-        ui.button('Clear', on_click=lambda: clear_cart(SID)).classes('ab')
+        ui.button('clear', on_click=lambda: clear_cart(SID)).classes('ab')
         def checkout():
             oid = create_order(SID)
             if oid:
                 ui.notify(f'Order #{oid} placed!', type='positive')
-        ui.button('Checkout', on_click=checkout).classes('ab')
+        ui.button('checkout', on_click=checkout).classes('ab')
 
 
 # ── PAGES ───────────────────────────────────────────────────────────
