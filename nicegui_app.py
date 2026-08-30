@@ -66,7 +66,7 @@ def page_template(left_fn, extra_css=''):
         .q-btn.ab, .q-btn.ab:hover, .q-btn.ab::before {{
             background: {ACCENT} !important; color: white !important; border-radius: 6px !important;
             font-size: 12px !important; min-height: 32px !important; min-width: 70px !important;
-            padding: 6px 16px !important;
+            padding: 6px 16px !important; text-transform: none !important;
         }}
         {extra_css}
     </style>''')
@@ -92,7 +92,7 @@ def page_template(left_fn, extra_css=''):
             msgs = ui.column().style('flex:1;overflow-y:auto;padding:0 12px;')
             # Welcome message
             with msgs:
-                with ui.row().classes('items-start gap-2 mb-3'):
+                with ui.row().classes('items-start gap-2 mb-3').style('data-welcome:1;'):
                     ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
                     ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">Hello! I\'m AIFinder, your lab equipment assistant. How can I help you today?</div>')
             with ui.row().classes('w-full items-center').style('padding:10px 12px;'):
@@ -172,18 +172,12 @@ def page_template(left_fn, extra_css=''):
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
 
-    # Load history from localStorage
+    # Only show welcome if no history
     ui.run_javascript('''
         const saved = localStorage.getItem("chat_history");
-        if (saved) {
-            try {
-                const history = JSON.parse(saved);
-                const msgsEl = document.querySelector("[class*='flex-grow']");
-                if (msgsEl && history.length > 0) {
-                    // Clear welcome message if history exists
-                    msgsEl.innerHTML = "";
-                }
-            } catch(e) {}
+        if (saved && JSON.parse(saved).length > 0) {
+            const welcomeEl = document.querySelector("[data-welcome]");
+            if (welcomeEl) welcomeEl.remove();
         }
     ''')
 
