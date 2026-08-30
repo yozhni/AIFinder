@@ -113,6 +113,8 @@ def page_template(left_fn, extra_css=''):
                 with ui.column().classes('max-w-[80%]'):
                     ui.label(text).style(f'background:{ACCENT};padding:10px 14px;border-radius:12px;color:white;font-size:14px;line-height:1.4;text-align:right;')
                 ui.avatar(icon='person', color='#888', text_color='white', size='sm')
+        # Save user message to localStorage
+        ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"user",text:{repr(text)},isHtml:false}}])));')
         # Show thinking animation
         thinking = None
         with msgs:
@@ -125,19 +127,45 @@ def page_template(left_fn, extra_css=''):
         except Exception as ex:
             response = f"Error: {str(ex)[:100]}"
         # Remove thinking, show response
-        if thinking:
-            thinking.delete()
-        with msgs:
-            with ui.row().classes('items-start gap-2 mb-3'):
-                ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
-                ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">{response}</div>')
+        try:
+            if thinking:
+                thinking.delete()
+        except Exception:
+            pass
+        try:
+            with msgs:
+                with ui.row().classes('items-start gap-2 mb-3'):
+                    ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                    ui.html(f'<div style="background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;">{response}</div>')
+        except Exception:
+            pass
+        # Save bot response to localStorage
+        ui.run_javascript(f'localStorage.setItem("chat_history", JSON.stringify(JSON.parse(localStorage.getItem("chat_history") || "[]").concat([{{role:"assistant",text:{repr(response)},isHtml:true}}])));')
         # Re-enable input
-        inp.enable()
-        send.enable()
-        inp.focus()
+        try:
+            inp.enable()
+            send.enable()
+            inp.focus()
+        except Exception:
+            pass
 
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
+
+    # Load history from localStorage
+    ui.run_javascript('''
+        const saved = localStorage.getItem("chat_history");
+        if (saved) {
+            try {
+                const history = JSON.parse(saved);
+                const msgsEl = document.querySelector("[class*='flex-grow']");
+                if (msgsEl && history.length > 0) {
+                    // Clear welcome message if history exists
+                    msgsEl.innerHTML = "";
+                }
+            } catch(e) {}
+        }
+    ''')
 
     # Footer
     ui.html(f'<div style="text-align:center;padding:10px 0;font-size:11px;color:{TEXT};background:{BG};position:fixed;bottom:0;width:100%;z-index:10;">&copy; 2026 AIFinder. All rights reserved.</div>')
