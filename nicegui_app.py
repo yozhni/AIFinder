@@ -243,11 +243,15 @@ def cart_content():
             qty.on('value-change', update_h)
             def remove_h(cid=item['id'], e=None):
                 remove_from_cart(cid)
+                ui.navigate.reload()
             ui.button(icon='delete', on_click=remove_h).style('color:red;')
     total = get_cart_total(SID)
     ui.label(f'Total: ${total:,.2f}').style(f'font-size:20px;font-weight:700;color:{TEXT};margin-top:12px;')
     with ui.row().classes('w-full gap-4').style('margin-top:12px;'):
-        ui.button('clear', on_click=lambda: clear_cart(SID)).classes('ab')
+        def clear_h(e=None):
+            clear_cart(SID)
+            ui.navigate.reload()
+        ui.button('clear', on_click=clear_h).classes('ab')
         def checkout():
             oid = create_order(SID)
             if oid:
