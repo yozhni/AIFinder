@@ -9,14 +9,14 @@ up: ## Start Docker services
 down: ## Stop Docker services
 	docker compose down
 
-install: ## Install Python dependencies
-	pip install streamlit neo4j groq sentence-transformers pandas psycopg2-binary pgvector python-dotenv streamlit-cookies-manager
+install: ## Install all Python dependencies (incl. NiceGUI)
+	pip install nicegui markdown requests streamlit neo4j groq sentence-transformers pandas psycopg2-binary pgvector python-dotenv streamlit-cookies-manager
 
 setup-db: ## Create database tables
 	docker exec -i aifinder-postgres psql -U aifinder -d aifinder < data/schema.sql
 	docker exec -i aifinder-neo4j cypher-shell -u neo4j -p aifinder_pass < data/graph_schema.cypher
 
-load-data: ## Load product data
+load-data: ## Load product data into DB
 	python data/ingest.py
 	python core/sync.py
 
@@ -30,16 +30,18 @@ run-open: ## Run Streamlit app and open browser
 	open http://localhost:8501
 
 run-gui: ## Run NiceGUI app
-	pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
+	lsof -ti:8080 | xargs kill -9 2>/dev/null; pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
 	python3 nicegui_app.py
 
 run-gui-open: ## Run NiceGUI app and open browser
-	pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
+	lsof -ti:8080 | xargs kill -9 2>/dev/null; pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
 	python3 nicegui_app.py &
+	sleep 5
+	open http://localhost:8080
 
-setup: install up setup-db load-data ## Full setup (install + db + data)
+setup: install up setup-db load-data ## 1) Install everything (deps + DB + data)
 
-dev: setup run ## Full setup + run
+dev: setup run ## Full setup + run (Streamlit)
 
 status: ## Show service status
 	docker compose ps

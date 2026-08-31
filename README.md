@@ -43,6 +43,12 @@ Sales chatbot that helps users find lab products, compare items, get recommendat
 ```
 
 ## Quick Start
+### 2 commands:
+
+```bash
+make setup           # 1) Install everything: deps + start Docker + create DB + load data
+make run-gui-open    # 2) Run the app locally and open http://localhost:8080
+```
 
 ### Prerequisites
 
@@ -167,36 +173,28 @@ streamlit run app.py
 
 ### 6. Open in Browser
 
-- **NiceGUI App**: http://localhost:8080
-- **Streamlit App**: http://localhost:8501
-- **Neo4j Browser**: http://localhost:7474 (login: neo4j / aifinder_pass)
-
-### Quick Start (One Command)
-
-```bash
-make run-open    # Starts Streamlit app + opens browser
-make run-gui-open  # Starts NiceGUI app + opens browser
-```
 
 > **Recommended:** Use `make run-gui-open` for the current NiceGUI frontend (chatbot + products + cart + orders).
 
 > **Prerequisite for chat:** if using Ollama, start it first with `ollama serve` then pull the model (`ollama pull qwen2.5:3b`).
 
-### Full Setup from Scratch (One Command)
 
-```bash
-make setup       # install deps + start Docker + create DB + load data
-make run-gui-open  # start NiceGUI app and open http://localhost:8080
-```
 
-Or step by step:
+**Step-by-step the same thing:**
 ```bash
 make up            # start PostgreSQL + Neo4j containers
-make install       # pip install python deps (+ pip install nicegui)
+make install       # pip install all python deps (incl. nicegui)
 make setup-db      # create tables in PostgreSQL + Neo4j
-make load-data     # load product data
+make load-data     # load product data into DB
 make run-gui-open  # start NiceGUI app at http://localhost:8080
 ```
+
+> **Prerequisite for chat:** start Ollama first, then pull the model:
+> ```bash
+> ollama serve &
+> ollama pull qwen2.5:3b
+> ```
+> Or set a Google API key (see LLM Options below).
 
 > If a previous instance is running, `make run-gui-open` kills old processes automatically.
 
@@ -214,17 +212,17 @@ make run-gui-open  # start NiceGUI app at http://localhost:8080
 
 ```bash
 make help          # Show all commands
+make setup         # 1) Install everything (deps + DB + data)
+make run-gui-open  # 2) Run NiceGUI app + open browser
 make up            # Start Docker services
 make down          # Stop Docker services
-make install       # Install Python dependencies
+make install       # Install all Python dependencies (incl. nicegui)
 make setup-db      # Create database tables
-make load-data     # Load product data
-make run           # Run Streamlit app
+make load-data     # Load product data into DB
+make run           # Run Streamlit app (legacy)
 make run-gui       # Run NiceGUI app
-make run-gui-open  # Run NiceGUI app + open browser
 make run-open      # Run Streamlit app + open browser
-make setup         # Full setup (install + up + setup-db + load-data)
-make dev           # Full setup + run
+make dev           # Full setup + run Streamlit
 make status        # Show service status
 make logs          # Show Docker logs
 make clean         # Remove all data and containers
