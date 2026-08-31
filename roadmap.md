@@ -811,11 +811,11 @@ with open("config.yaml.enc", "rb") as f:
 ### NiceGUI Frontend (nicegui_app.py)
 
 - [x] **Chatbot not answering** — Fixed async handler with `asyncio.to_thread()` instead of `asyncio.run()`
-- [x] **Chatbot history lost on page switch** — Server-side JSON file storage (`.chat_history.json`) instead of localStorage
+- [x] **Chatbot history lost on page switch** — Moved to PostgreSQL `chat_history` table (replaced JSON file / localStorage)
 - [x] **Chatbot thinking animation** — Added "thinking..." label while LLM processes, disabled input during thinking
 - [x] **Double submit prevention** — Input and button disabled while bot thinks, re-enabled after response
 - [x] **Chat continues if user navigates away** — LLM call continues, response saved to server, UI updates only if page alive
-- [x] **Product links 404** — Converted `/Products?product_id=X` to `/products/X` in LLM prompt and markdown converter
+- [x] **Product links 404** — Converted `/Products?product_id=X` to `/products/X` (single format, in config)
 - [x] **Product search not working** — Replaced search with pagination (12 products/page, prev/next buttons)
 - [x] **Cart buttons not working** — Added `ui.navigate.reload()` after clear/remove operations
 - [x] **View/Add buttons different sizes** — Matched height (32px), padding, min-width exactly
@@ -825,8 +825,8 @@ with open("config.yaml.enc", "rb") as f:
 - [x] **Grey lines removed** — `.q-splitter__before, .q-splitter__after { border: none !important; }`
 - [x] **Product image too large** — Reduced from 400px to 250px max-width
 - [x] **Add button too wide on product page** — Removed `width:100%`
-- [x] **Welcome message persistence** — Server-side storage, hidden if history exists
-- [x] **Chatbot persistence across pages** — Server-side JSON file, loaded on page init
+- [x] **Welcome message persistence** — PostgreSQL storage, hidden if history exists
+- [x] **Chatbot persistence across pages** — PostgreSQL `chat_history`, loaded on page init
 - [x] **Common page template** — `page_template()` function for all pages (header, 65/35 split, chatbot, footer)
 
 ### Image Loading
@@ -872,6 +872,19 @@ with open("config.yaml.enc", "rb") as f:
 
 - [x] **Friendly error messages** — "I couldn't find a product matching X. Would you try something else?"
 - [x] **Session ID consistency** — Fixed session ID across all pages for cart persistence
+
+### Chat Persistence, Scaling & Search (latest)
+
+- [x] **Per-user session isolation** — `get_session_id()` uses `app.storage.user` (server-side cookie) instead of shared constant; verified isolated per browser + consistent across pages
+- [x] **Question + "thinking" survive page switch** — User message saved synchronously + cache invalidated immediately, so the new page reads fresh history (no more disappearing/reappearing)
+- [x] **Removed duplicate user-save** — `core/llm.py` saves only the assistant response; caller saves the user message
+- [x] **Chatbot scroll-to-bottom** — New `scroll_chat_to_bottom()` with reliable `id="chat-msgs"`; scrolls on submit, thinking, response, page open, and pending-request append
+- [x] **Pending request appends in place** — Replaced full page reload with append + scroll (case 7)
+- [x] **Chat history → PostgreSQL** — Replaced JSON file with `chat_history` table (already existed)
+- [x] **In-memory history cache** — `cached_load_history()` + `invalidate_history_cache()` (configurable `history_limit`)
+- [x] **DB cleanup algorithm** — Per-session message cap on save, expired-history/cart cleanup on startup + daily timer (`retention_days`)
+- [x] **Search improved (Option B + semantic fallback)** — `search_products` extracts volume spec (e.g. `50 mL`) with word-boundary match + falls back to `semantic_search`; fixes "50 mL tubes" returning 0 while "250 mL" no longer false-matches
+- [x] **`.gitignore` cleanup** — Added `.nicegui/`, fixed `.env.env` → `.env` typo
 
 ---
 
