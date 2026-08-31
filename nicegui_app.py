@@ -17,6 +17,7 @@ from core.database import (
     search_products, get_product, add_to_cart as db_add_to_cart,
     get_cart as db_get_cart, update_cart_item, remove_from_cart,
     clear_cart, get_cart_total, create_order,
+    save_message, load_history,
 )
 from config import get
 
@@ -28,35 +29,6 @@ BG = '#D3D3D3'
 TEXT = '#555555'
 ACCENT = '#444444'
 SID = "aifinder_session"
-
-
-def save_chat_history(role, text, is_html=False):
-    """Save chat history to server-side JSON file."""
-    import json
-    history_file = os.path.join(os.path.dirname(__file__), '.chat_history.json')
-    try:
-        history = []
-        if os.path.exists(history_file):
-            with open(history_file, 'r') as f:
-                history = json.load(f)
-        history.append({'role': role, 'text': text, 'isHtml': is_html})
-        with open(history_file, 'w') as f:
-            json.dump(history, f)
-    except Exception:
-        pass
-
-
-def load_chat_history():
-    """Load chat history from server-side JSON file."""
-    import json
-    history_file = os.path.join(os.path.dirname(__file__), '.chat_history.json')
-    try:
-        if os.path.exists(history_file):
-            with open(history_file, 'r') as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return []
 
 
 def md_to_html(text):
@@ -150,9 +122,6 @@ def page_template(left_fn, extra_css=''):
                         ui.avatar(icon='person', color='#888', text_color='white', size='sm')
             except Exception:
                 page_alive = False
-        # Save user message to server
-        save_chat_history('user', text)
-
         # Show thinking animation
         thinking = None
         if page_alive:
@@ -166,13 +135,11 @@ def page_template(left_fn, extra_css=''):
 
         # Call LLM (always runs, even if page is gone)
         try:
+            # get_llm_response() saves the user + assistant messages to PostgreSQL
             response = await asyncio.to_thread(get_llm_response, SID, text)
             response = md_to_html(response)
         except Exception as ex:
             response = f"Error: {str(ex)[:100]}"
-
-        # Save to server (always runs)
-        save_chat_history('assistant', response, is_html=True)
 
         # Update UI if page is still alive
         if page_alive:
@@ -203,7 +170,7 @@ def page_template(left_fn, extra_css=''):
     # Load history only once per page session
     history_key = f'_history_loaded_{id(msgs)}'
     if history_key not in dir(ui.context):
-        history = load_chat_history()
+        history = load_history(SID, limit=50)
         if history:
             try:
                 welcome_row = msgs.element(0)
@@ -212,7 +179,7 @@ def page_template(left_fn, extra_css=''):
             except Exception:
                 pass
             for m in history:
-                is_user = m.get('role') == 'user'
+                is_user = m['role'] == 'user'
                 bg = ACCENT if is_user else 'white'
                 color = 'white' if is_user else TEXT
                 avatar_bg = '#888' if is_user else ACCENT
@@ -221,10 +188,11 @@ def page_template(left_fn, extra_css=''):
                 with msgs:
                     with ui.row().classes(f'items-start gap-2 mb-3 {flex_dir}'):
                         ui.avatar(icon=avatar, color=avatar_bg, text_color='white', size='sm')
-                        if m.get('isHtml'):
-                            ui.html(f'<div style="background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;">{m["text"]}</div>')
+                        content = m['content']
+                        if is_user:
+                            ui.label(content).style(f'background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;')
                         else:
-                            ui.label(m['text']).style(f'background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;')
+                            ui.markdown(content).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
         setattr(ui.context, history_key, True)
 
     # Footer
