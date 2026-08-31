@@ -142,11 +142,13 @@ def search_products(query=None, category=None, brand=None, min_price=None,
             spec_results = execute_query(spec_query, tuple(spec_params))
             products = [dict(r) for r in spec_results] if spec_results else []
 
-    # Step 3: semantic fallback if still nothing
+    # Step 3: semantic fallback if still nothing (threshold filters noise)
     if not products and query:
         try:
             embedding = generate_embedding(query)
-            products = semantic_search(query_embedding=embedding, limit=limit)
+            semantic = semantic_search(query_embedding=embedding, limit=limit)
+            # Only accept results that are meaningfully similar (reject gibberish/nonsense)
+            products = [p for p in semantic if p.get('similarity', 0) >= 0.3]
         except Exception:
             products = []
 
