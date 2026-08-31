@@ -83,11 +83,8 @@ def build_context(session_id, limit=20):
 
 
 def get_llm_response(session_id, user_message):
-    try:
-        save_message(session_id, "user", user_message)
-    except Exception:
-        pass
-
+    # NOTE: user message is saved by the caller (nicegui_app.send_msg),
+    # so we only save the assistant response (line ~111).
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + \
                build_context(session_id) + \
                [{"role": "user", "content": user_message}]

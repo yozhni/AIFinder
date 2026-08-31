@@ -35,7 +35,7 @@ Sales chatbot that helps users find lab products, compare items, get recommendat
 ┌───────▼──────────────▼──────────────────────────────┐
 │                    LLM Layer                         │
 │  ┌─────────────────┐  ┌──────────────────────────┐  │
-│  │ Groq (cloud)    │  │ Ollama (local fallback)  │  │
+│  │ Google (cloud) │  │ Ollama (local fallback)  │  │
 │  │ llama-3.1-8b    │  │ qwen2.5:3b               │  │
 │  │ 560 tokens/sec  │  │ 80-120 tokens/sec        │  │
 │  └─────────────────┘  └──────────────────────────┘  │
@@ -48,14 +48,15 @@ Sales chatbot that helps users find lab products, compare items, get recommendat
 
 - Docker Desktop installed
 - Python 3.10+
-- (Optional) Groq API key for cloud LLM
-- (Optional) Ollama for local LLM
+- (Optional) Google AI API key for cloud LLM (see LLM Options)
+- (Optional) Ollama for local LLM (see LLM Options)
 
 ### Python Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| `streamlit` | Web UI framework |
+| `nicegui` | Web UI framework (primary frontend) |
+| `streamlit` | Legacy web UI framework |
 | `neo4j` | Neo4j database driver |
 | `groq` | Groq API client |
 | `sentence-transformers` | Embedding model (MiniLM-L6-v2) |
@@ -63,12 +64,16 @@ Sales chatbot that helps users find lab products, compare items, get recommendat
 | `psycopg2-binary` | PostgreSQL driver |
 | `pgvector` | Vector similarity search |
 | `python-dotenv` | Environment variable loading |
-| `streamlit-cookies-manager` | Browser cookie for session persistence |
 
 Install all at once:
 ```bash
 make install
 ```
+
+> The `make install` command installs the base packages. `nicegui` must be installed separately:
+> ```bash
+> pip install nicegui
+> ```
 
 ### Hugging Face Token (Optional)
 
@@ -141,10 +146,20 @@ python core/sync.py
 
 ### 5. Run App
 
+**Option A: NiceGUI (primary, chat + catalog + cart in one UI)**
+```bash
+make run-gui-open    # Starts NiceGUI app + opens browser
+```
+Or manually:
+```bash
+python3 nicegui_app.py
+```
+App opens at **http://localhost:8080**
+
+**Option B: Streamlit (legacy pages)**
 ```bash
 make run
 ```
-
 Or manually:
 ```bash
 streamlit run app.py
@@ -152,19 +167,44 @@ streamlit run app.py
 
 ### 6. Open in Browser
 
-- **App**: http://localhost:8501
+- **NiceGUI App**: http://localhost:8080
+- **Streamlit App**: http://localhost:8501
 - **Neo4j Browser**: http://localhost:7474 (login: neo4j / aifinder_pass)
 
 ### Quick Start (One Command)
 
 ```bash
-make run-open    # Starts app + opens browser
+make run-open    # Starts Streamlit app + opens browser
+make run-gui-open  # Starts NiceGUI app + opens browser
 ```
+
+> **Recommended:** Use `make run-gui-open` for the current NiceGUI frontend (chatbot + products + cart + orders).
+
+> **Prerequisite for chat:** if using Ollama, start it first with `ollama serve` then pull the model (`ollama pull qwen2.5:3b`).
+
+### Full Setup from Scratch (One Command)
+
+```bash
+make setup       # install deps + start Docker + create DB + load data
+make run-gui-open  # start NiceGUI app and open http://localhost:8080
+```
+
+Or step by step:
+```bash
+make up            # start PostgreSQL + Neo4j containers
+make install       # pip install python deps (+ pip install nicegui)
+make setup-db      # create tables in PostgreSQL + Neo4j
+make load-data     # load product data
+make run-gui-open  # start NiceGUI app at http://localhost:8080
+```
+
+> If a previous instance is running, `make run-gui-open` kills old processes automatically.
 
 ## Services
 
 | Service | Port | URL | Login |
 |---------|------|-----|-------|
+| NiceGUI App | 8080 | http://localhost:8080 | - |
 | Streamlit App | 8501 | http://localhost:8501 | - |
 | PostgreSQL | 5432 | localhost:5432 | aifinder / aifinder_pass |
 | Neo4j Browser | 7474 | http://localhost:7474 | neo4j / aifinder_pass |
@@ -180,6 +220,9 @@ make install       # Install Python dependencies
 make setup-db      # Create database tables
 make load-data     # Load product data
 make run           # Run Streamlit app
+make run-gui       # Run NiceGUI app
+make run-gui-open  # Run NiceGUI app + open browser
+make run-open      # Run Streamlit app + open browser
 make setup         # Full setup (install + up + setup-db + load-data)
 make dev           # Full setup + run
 make status        # Show service status
@@ -216,7 +259,10 @@ Edit `config.yaml`:
 ```yaml
 llm:
   provider: ollama
-  ollama_model: qwen2.5:3b
+
+ollama:
+  host: http://localhost:11434
+  model: qwen2.5:3b
 ```
 
 **Models available:**
@@ -226,35 +272,38 @@ llm:
 | qwen2.5:7b | 4.7 GB | 50-80 t/s | Better |
 | llama3:8b | 4.7 GB | 50-80 t/s | Good |
 
-### Option 2: Groq (Cloud) - Paid
+**Step 4 note:** the chat history cleanup config lives under `chat:`:
+```yaml
+chat:
+  context_window_size: 20
+  history_limit: 50      # max messages kept per session
+  retention_days: 30     # delete inactive sessions after this many days
+```
 
-Very fast inference, but costs money ($0.075-0.60 per 1M tokens).
+### Option 2: Google (Cloud) - Free tier
+
+Free tier via Google AI Studio. Requires an API key.
 
 **Step 1: Get API Key**
-1. Go to https://console.groq.com
-2. Sign up (free account)
-3. Go to API Keys → Create Key
-4. Copy the key
+1. Go to https://aistudio.google.com/apikey
+2. Create a key (free account)
+3. Store it in `.env` as `GOOGLE_API_KEY` (file is gitignored):
+   ```
+   GOOGLE_API_KEY=AQ.your_key_here
+   ```
 
 **Step 2: Configure**
 Edit `config.yaml`:
 ```yaml
 llm:
-  provider: groq
-  groq_model: openai/gpt-oss-20b
+  provider: google
 
-groq:
-  api_key: gsk_your_key_here
+google:
+  model: auto
+  api_key: ${GOOGLE_API_KEY}
 ```
 
-**Available models:**
-| Model | Speed | Price (per 1M tokens) |
-|-------|-------|----------------------|
-| openai/gpt-oss-20b | 1000 t/s | $0.075 in / $0.30 out |
-| openai/gpt-oss-120b | 500 t/s | $0.15 in / $0.60 out |
-| qwen/qwen3.6-27b | 500 t/s | $0.60 in / $3.00 out |
-
-**Recommendation:** Start with Ollama (free). Switch to Groq only if you need faster responses.
+**Recommendation:** Start with Ollama (free, offline). Switch to Google if you need faster/better responses without running a local model.
 
 ## Data
 
@@ -266,35 +315,37 @@ groq:
 
 ```
 AIFinder/
-├── app.py                    # Main Streamlit entry point
+├── nicegui_app.py          # NiceGUI frontend (chat + catalog + cart + orders)
+├── app.py                  # Main Streamlit entry point (legacy)
 ├── pages/
-│   ├── 1_Chat.py             # Chat interface
-│   ├── 2_Products.py         # Product catalog
-│   ├── 3_Cart.py             # Shopping cart
-│   └── 4_Orders.py           # Order history
+│   ├── 1_Chat.py           # Chat interface
+│   ├── 2_Products.py       # Product catalog
+│   ├── 3_Cart.py           # Shopping cart
+│   └── 4_Orders.py         # Order history
 ├── core/
-│   ├── database.py           # PostgreSQL connection
-│   ├── graph.py              # Neo4j connection
-│   ├── embeddings.py         # Vector generation
-│   ├── llm.py                # Groq/Ollama integration
-│   ├── search.py             # Search orchestration
-│   ├── sync.py               # PostgreSQL → Neo4j sync
-│   └── tools.py              # LLM tool definitions
+│   ├── database.py         # PostgreSQL connection
+│   ├── graph.py            # Neo4j connection
+│   ├── embeddings.py       # Vector generation
+│   ├── llm.py              # Groq/Ollama integration
+│   ├── search.py           # Search orchestration
+│   ├── sync.py             # PostgreSQL → Neo4j sync
+│   └── tools.py            # LLM tool definitions
 ├── data/
-│   ├── schema.sql            # PostgreSQL schema
-│   ├── graph_schema.cypher   # Neo4j schema
-│   ├── ingest.py             # Data ingestion
-│   └── test_data.csv         # 500 products
-├── docker-compose.yml        # Docker services
-├── Makefile                  # Build commands
-├── .env.example              # API keys template
-└── roadmap.md                # Implementation plan
+│   ├── schema.sql          # PostgreSQL schema
+│   ├── graph_schema.cypher # Neo4j schema
+│   ├── ingest.py           # Data ingestion
+│   └── test_data.csv       # 500 products
+├── static/                 # Images (main_page.png, microscope.png, placeholder.webp)
+├── docker-compose.yml      # Docker services
+├── Makefile                # Build commands
+├── .env.example            # API keys template
+└── roadmap.md              # Implementation plan
 ```
 
 ## Pricing
 
 | Phase | Components | Cost |
 |-------|------------|------|
-| POC | PostgreSQL + Neo4j + Groq + Local embeddings | $0 |
-| Cloud | Streamlit Cloud + Groq free tier | $0 |
+| POC | PostgreSQL + Neo4j + Ollama (or Google free tier) + Local embeddings | $0 |
+| Cloud | VPS/Railway + Ollama (or Google free tier) | $0-5/mo |
 | Production | Paid tiers | $25-50/mo |

@@ -12,6 +12,10 @@ from config import get
 
 DATABASE_URL = get("database", "url")
 
+# Chat history cleanup config
+HISTORY_LIMIT = get("chat", "history_limit") or 50
+RETENTION_DAYS = get("chat", "retention_days") or 30
+
 
 def get_connection():
     """Get PostgreSQL connection."""
@@ -47,9 +51,26 @@ def get_product(product_id):
     return dict(result[0]) if result else None
 
 
+import re
+from core.embeddings import generate_embedding
+
+
+def _extract_volume_spec(query):
+    """Extract a measurable volume spec like '50 mL', '1.5 mL', '1 L' from query text."""
+    if not query:
+        return None
+    m = re.search(r'\b(\d+(?:\.\d+)?)\s*(mL|ml|ML|µL|uL|L)\b', query)
+    if not m:
+        return None
+    num = m.group(1)
+    unit = m.group(2)
+    # Normalize to 'N mL' / 'N L' form as stored in volume_or_capacity
+    return f"{num} {unit}"
+
+
 def search_products(query=None, category=None, brand=None, min_price=None,
                     max_price=None, refrigerated=None, sterile=None, limit=10):
-    """Search products with SQL filters."""
+    """Search products with SQL filters (keyword) + capacity spec match + semantic fallback."""
     conditions = ["is_deleted = FALSE"]
     params = []
 
@@ -87,7 +108,49 @@ def search_products(query=None, category=None, brand=None, min_price=None,
     params.append(limit)
 
     results = execute_query(query_str, tuple(params))
-    return [dict(r) for r in results] if results else []
+    products = [dict(r) for r in results] if results else []
+
+    # Step 2: if keyword search found nothing, filter by extracted volume spec
+    # (e.g. "50 mL tubes" -> capacity contains "50 mL")
+    if not products and query:
+        spec = _extract_volume_spec(query)
+        if spec:
+            spec_conditions = ["is_deleted = FALSE"]
+            spec_params = []
+            if category:
+                spec_conditions.append("category = %s")
+                spec_params.append(category)
+            if brand:
+                spec_conditions.append("brand ILIKE %s")
+                spec_params.append(f"%{brand}%")
+            if refrigerated is not None:
+                spec_conditions.append("refrigerated = %s")
+                spec_params.append(refrigerated)
+            if sterile is not None:
+                spec_conditions.append("sterile = %s")
+                spec_params.append(sterile)
+            # word-boundary match in volume_or_capacity to avoid '250 mL' matching '50 mL'
+            spec_conditions.append(
+                "(volume_or_capacity ~* %s OR specifications ~* %s)")
+            # Require the number to be a standalone token (not part of '250')
+            like_spec = r'(?<![0-9])' + re.escape(spec).replace(r'\ ', r'\s+')
+            spec_params.extend([like_spec, like_spec])
+            spec_where = " AND ".join(spec_conditions)
+            spec_query = (f"SELECT * FROM products WHERE {spec_where} "
+                          f"ORDER BY price_usd LIMIT %s")
+            spec_params.append(limit)
+            spec_results = execute_query(spec_query, tuple(spec_params))
+            products = [dict(r) for r in spec_results] if spec_results else []
+
+    # Step 3: semantic fallback if still nothing
+    if not products and query:
+        try:
+            embedding = generate_embedding(query)
+            products = semantic_search(query_embedding=embedding, limit=limit)
+        except Exception:
+            products = []
+
+    return products
 
 
 def get_product_by_name(product_name, brand=None):
@@ -243,12 +306,39 @@ def semantic_search(query_embedding, limit=10):
 # ============================================
 
 def save_message(session_id, role, content, tool_calls=None):
-    """Save a message to chat history."""
+    """Save a message to chat history, then cap per-session history."""
     tool_calls_json = Json(tool_calls) if tool_calls else None
     execute_query(
         """INSERT INTO chat_history (session_id, role, content, tool_calls)
            VALUES (%s, %s, %s, %s)""",
         (session_id, role, content, tool_calls_json),
+        fetch=False
+    )
+    # Cap: keep only the last HISTORY_LIMIT messages per session
+    execute_query(
+        """DELETE FROM chat_history
+           WHERE id IN (
+               SELECT id FROM chat_history
+               WHERE session_id = %s
+               ORDER BY created_at DESC
+               OFFSET %s)""",
+        (session_id, HISTORY_LIMIT),
+        fetch=False
+    )
+
+
+def cleanup_expired_chat_history():
+    """Delete chat history and abandoned carts inactive for RETENTION_DAYS."""
+    # Expire old chat history (by last-message time)
+    execute_query(
+        "DELETE FROM chat_history WHERE created_at < NOW() - make_interval(days => %s)",
+        (RETENTION_DAYS,),
+        fetch=False
+    )
+    # Expire abandoned carts (by last-add time)
+    execute_query(
+        "DELETE FROM cart_items WHERE added_at < NOW() - make_interval(days => %s)",
+        (RETENTION_DAYS,),
         fetch=False
     )
 

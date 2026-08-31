@@ -152,3 +152,5 @@ cloudinary:
 # Chat
 chat:
   context_window_size: 20
+  history_limit: 10
+  retention_days: 30

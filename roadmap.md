@@ -872,3 +872,35 @@ with open("config.yaml.enc", "rb") as f:
 
 - [x] **Friendly error messages** — "I couldn't find a product matching X. Would you try something else?"
 - [x] **Session ID consistency** — Fixed session ID across all pages for cart persistence
+
+---
+
+## Future Refactoring Ideas (NOT IMPLEMENTED — DON'T DO NOW)
+
+> These ideas are recorded for later. The current single-file approach works and preserves all custom UI styles. Splitting risks breaking imports, CSS selectors, and session logic. Only do when the app grows or multiple devs work on it.
+
+### Refactor: Split nicegui_app.py into modules
+
+Current single file (~350 lines) mixes layout, pages, chat, and API. Proposed structure:
+
+```
+nicegui_app.py          # entry: ui.run(), API routes
+frontend/
+  __init__.py
+  template.py           # page_template(), header, footer, CSS
+  chatbot.py            # chat logic, send_msg, history load/render
+  pages.py              # home, products, cart, product_detail content fns
+```
+
+**Benefits:** easier to read, isolated chatbot logic, design changes in one place, smaller diffs.
+
+**Costs:** more files, complex import paths, risk of breaking the tightly-coupled CSS.
+
+**Prerequisites before attempting:**
+- [ ] Move shared constants (BG, TEXT, ACCENT) to a common module
+- [ ] Extract `page_template()` into `frontend/template.py`
+- [ ] Extract chat logic (`send_msg`, history) into `frontend/chatbot.py`
+- [ ] Extract page content functions into `frontend/pages.py`
+- [ ] Verify ALL CSS selectors still apply after split
+- [ ] Verify session/cart persistence still works
+

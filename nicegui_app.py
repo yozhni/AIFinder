@@ -17,7 +17,7 @@ from core.database import (
     search_products, get_product, add_to_cart as db_add_to_cart,
     get_cart as db_get_cart, update_cart_item, remove_from_cart,
     clear_cart, get_cart_total, create_order,
-    save_message, load_history,
+    save_message, load_history, cleanup_expired_chat_history,
 )
 from config import get
 
@@ -28,12 +28,46 @@ IMAGE_EXT = get("cloudinary", "image_ext")
 BG = '#D3D3D3'
 TEXT = '#555555'
 ACCENT = '#444444'
-SID = "aifinder_session"
+HISTORY_LIMIT = get("chat", "history_limit") or 50
+
+# Issue 4: in-memory chat history cache (per session)
+_history_cache = {}
+
+
+def get_session_id():
+    """Unique session per browser (persisted server-side via session cookie)."""
+    import uuid
+    if 'sid' not in app.storage.user:
+        app.storage.user['sid'] = str(uuid.uuid4())
+    return app.storage.user['sid']
+
+
+def cached_load_history(session_id, limit=None):
+    """Issue 4: Load history from memory cache, fallback to PostgreSQL."""
+    limit = limit or HISTORY_LIMIT
+    if session_id in _history_cache:
+        return _history_cache[session_id]
+    history = load_history(session_id, limit=limit)
+    _history_cache[session_id] = history
+    return history
+
+
+def invalidate_history_cache(session_id):
+    """Issue 4: Drop cache entry after a new message is saved."""
+    _history_cache.pop(session_id, None)
 
 
 def md_to_html(text):
     """Pass through markdown for ui.markdown renderer."""
     return text
+
+
+def scroll_chat_to_bottom():
+    """Scroll the chat messages container to the last message."""
+    ui.run_javascript('''
+        const el = document.getElementById("chat-msgs");
+        if (el) el.scrollTop = el.scrollHeight;
+    ''')
 
 
 def get_product_image(pid):
@@ -89,7 +123,7 @@ def page_template(left_fn, extra_css=''):
     with splitter.after:
         with ui.column().style(f'width:100%;height:100%;background:{BG};display:flex;flex-direction:column;padding:0;'):
             ui.html(f'<div style="padding:16px 16px 8px;"><div style="font-weight:600;font-size:18px;color:{TEXT};">AIFinder</div><div style="font-size:13px;color:{TEXT};margin-top:2px;">AI chatbot to help you find products</div></div>')
-            msgs = ui.column().style('flex:1;overflow-y:auto;padding:0 12px;')
+            msgs = ui.column().style('flex:1;overflow-y:auto;padding:0 12px;').props('id="chat-msgs"')
             # Welcome message
             with msgs:
                 with ui.row().classes('items-start gap-2 mb-3').style('data-welcome:1;'):
@@ -130,14 +164,23 @@ def page_template(left_fn, extra_css=''):
                     with ui.row().classes('items-start gap-2 mb-3'):
                         ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
                         thinking = ui.label('thinking...').style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;')
+                # Case 3: focus on thinking message
+                scroll_chat_to_bottom()
             except Exception:
                 page_alive = False
 
         # Call LLM (always runs, even if page is gone)
         try:
-            # get_llm_response() saves the user + assistant messages to PostgreSQL
-            response = await asyncio.to_thread(get_llm_response, SID, text)
+            sid = get_session_id()
+            # Persist the question synchronously so it survives page navigation
+            save_message(sid, "user", text)
+            # Drop stale cache so a new page reads fresh history (with the question)
+            invalidate_history_cache(sid)
+            # get_llm_response() now saves only the assistant message
+            response = await asyncio.to_thread(get_llm_response, sid, text)
             response = md_to_html(response)
+            # Invalidate cache so next load reads fresh history (with the answer)
+            invalidate_history_cache(sid)
         except Exception as ex:
             response = f"Error: {str(ex)[:100]}"
 
@@ -153,8 +196,8 @@ def page_template(left_fn, extra_css=''):
                     with ui.row().classes('items-start gap-2 mb-3'):
                         ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
                         ui.markdown(response).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
-                # Scroll to bottom
-                ui.run_javascript('document.querySelector("[class*=flex-grow]").scrollTop = 999999;')
+                # Case 4: scroll to bot response
+                scroll_chat_to_bottom()
             except Exception:
                 pass
             try:
@@ -170,7 +213,7 @@ def page_template(left_fn, extra_css=''):
     # Load history only once per page session
     history_key = f'_history_loaded_{id(msgs)}'
     if history_key not in dir(ui.context):
-        history = load_history(SID, limit=50)
+        history = cached_load_history(get_session_id())
         if history:
             try:
                 welcome_row = msgs.element(0)
@@ -193,7 +236,58 @@ def page_template(left_fn, extra_css=''):
                             ui.label(content).style(f'background:{bg};padding:10px 14px;border-radius:12px;color:{color};font-size:14px;line-height:1.4;max-width:80%;')
                         else:
                             ui.markdown(content).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
+            # Case 5: scroll to last message on open / navigation
+            scroll_chat_to_bottom()
         setattr(ui.context, history_key, True)
+
+        # Issue 3: if last message is from user (no bot response yet), show thinking and poll
+        if history and history[-1]['role'] == 'user':
+            sid = get_session_id()
+            thinking = None
+            try:
+                with msgs:
+                    with ui.row().classes('items-start gap-2 mb-3'):
+                        ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                        thinking = ui.label('thinking...').style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;')
+                # Case 6: scroll to pending thinking message
+                scroll_chat_to_bottom()
+            except Exception:
+                thinking = None
+
+            def poll_for_response():
+                nonlocal thinking
+                try:
+                    fresh = load_history(sid, limit=2)
+                    if fresh and fresh[-1]['role'] == 'assistant':
+                        if thinking is not None:
+                            try:
+                                thinking.delete()
+                            except Exception:
+                                pass
+                        # No need for further polling
+                        return fresh
+                except Exception:
+                    pass
+                return None
+
+            timer = ui.timer(2.0, lambda: None)
+            def check():
+                nonlocal thinking
+                fresh = poll_for_response()
+                if fresh is not None:
+                    timer.cancel()
+                    # Case 7: append the pending bot response in place, no page reload
+                    try:
+                        content = fresh[-1]['content']
+                        with msgs:
+                            with ui.row().classes('items-start gap-2 mb-3'):
+                                ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                                ui.markdown(content).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
+                        scroll_chat_to_bottom()
+                    except Exception:
+                        pass
+            timer = ui.timer(2.0, check)
+            setattr(ui.context, history_key, True)
 
     # Footer
     ui.html(f'<div style="text-align:center;padding:10px 0;font-size:11px;color:{TEXT};background:{BG};position:fixed;bottom:0;width:100%;z-index:10;">&copy; 2026 AIFinder. All rights reserved.</div>')
@@ -238,7 +332,7 @@ def products_content():
                                 with ui.row().classes('w-full gap-1'):
                                     ui.link('view', f'/products/{pr["id"]}').classes('vl')
                                     def add_h(pid=pr['id'], e=None):
-                                        db_add_to_cart(SID, pid, 1)
+                                        db_add_to_cart(get_session_id(), pid, 1)
                                         ui.notify(f'Added {pid} to cart!', type='positive')
                                     ui.button('add', on_click=add_h).classes('ab')
 
@@ -262,7 +356,7 @@ def products_content():
 
 def cart_content():
     ui.label('Shopping Cart').style(f'font-size:24px;font-weight:700;color:{TEXT};margin-bottom:8px;')
-    cart = db_get_cart(SID)
+    cart = db_get_cart(get_session_id())
     if not cart:
         ui.label('Your cart is empty.').style(f'color:{TEXT};padding:20px;')
         ui.link('Browse Products', '/products').style(f'color:{TEXT};text-decoration:underline;')
@@ -282,15 +376,15 @@ def cart_content():
                 remove_from_cart(cid)
                 ui.navigate.reload()
             ui.button(icon='delete', on_click=remove_h).style('color:red;')
-    total = get_cart_total(SID)
+    total = get_cart_total(get_session_id())
     ui.label(f'Total: ${total:,.2f}').style(f'font-size:20px;font-weight:700;color:{TEXT};margin-top:12px;')
     with ui.row().classes('w-full gap-4').style('margin-top:12px;'):
         def clear_h(e=None):
-            clear_cart(SID)
+            clear_cart(get_session_id())
             ui.navigate.reload()
         ui.button('clear', on_click=clear_h).classes('ab')
         def checkout():
-            oid = create_order(SID)
+            oid = create_order(get_session_id())
             if oid:
                 ui.notify(f'Order #{oid} placed!', type='positive')
         ui.button('checkout', on_click=checkout).classes('ab')
@@ -300,6 +394,8 @@ def cart_content():
 @ui.page('/')
 def index():
     page_template(home_content)
+    # Daily cleanup (runs while app is serving)
+    ui.timer(86400, _run_cleanup)
 
 @ui.page('/products')
 def products_page():
@@ -323,7 +419,7 @@ def _product_detail_content(product_id):
     with ui.row().classes('w-full gap-4 items-center').style('margin-top:16px;'):
         qty = ui.number(value=1, min=1).style('width:100px;')
         def add_h(e=None):
-            db_add_to_cart(SID, product_id, int(qty.value))
+            db_add_to_cart(get_session_id(), product_id, int(qty.value))
             ui.notify(f'Added {int(qty.value)}x to cart!', type='positive')
         ui.button('add', on_click=add_h).classes('ab')
 
@@ -340,11 +436,29 @@ FAVICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'mi
 async def chat_api(request: Request):
     data = await request.json()
     message = data.get('message', '')
+    session_id = data.get('session_id') or get_session_id()
     try:
-        response = await asyncio.to_thread(get_llm_response, SID, message)
+        response = await asyncio.to_thread(get_llm_response, session_id, message)
         response = md_to_html(response)
+        invalidate_history_cache(session_id)
     except Exception as e:
         response = f"Error: {str(e)[:100]}"
     return JSONResponse({'response': response})
 
-ui.run(host='0.0.0.0', port=8080, title='AIFinder', reload=False, favicon=FAVICON)
+
+# ── DB CLEANUP ──────────────────────────────────────────────────────
+def _run_cleanup():
+    """Run expired chat history / cart cleanup."""
+    try:
+        cleanup_expired_chat_history()
+    except Exception as e:
+        print(f"[cleanup] error: {e}")
+
+
+# Run once on startup
+@app.on_startup
+async def _startup_cleanup():
+    await asyncio.to_thread(_run_cleanup)
+
+ui.run(host='0.0.0.0', port=8080, title='AIFinder', reload=False, favicon=FAVICON,
+       storage_secret=get("chat", "storage_secret") or "aifinder_secret_key")
