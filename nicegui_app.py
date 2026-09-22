@@ -461,4 +461,5 @@ async def _startup_cleanup():
     await asyncio.to_thread(_run_cleanup)
 
 ui.run(host='0.0.0.0', port=8080, title='AIFinder', reload=False, favicon=FAVICON,
+       show=os.getenv('NICEGUI_SHOW', '').lower() in ('1', 'true', 'yes'),
        storage_secret=get("chat", "storage_secret") or "aifinder_secret_key")
