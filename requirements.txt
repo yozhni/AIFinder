@@ -1,0 +1,24 @@
+# AIFinder runtime dependencies
+# Core app (NiceGUI frontend)
+nicegui
+markdown
+requests
+python-dotenv
+
+# Database + vector search
+psycopg2-binary
+pgvector
+
+# Embeddings
+sentence-transformers
+pandas
+
+# Legacy Streamlit UI
+streamlit
+streamlit-cookies-manager
+
+# Graph database (required: core/llm.py -> core/search.py -> core/graph.py imports the driver)
+neo4j
+
+# Optional: Groq LLM (referenced in .env but not implemented in core/llm.py)
+groq

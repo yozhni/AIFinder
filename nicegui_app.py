@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nicegui import ui, app
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from core.llm import get_llm_response
+from core.llm import get_llm_response, is_error
 from core.database import (
     search_products, get_product, add_to_cart as db_add_to_cart,
     get_cart as db_get_cart, update_cart_item, remove_from_cart,
@@ -191,21 +191,44 @@ def page_template(left_fn, extra_css=''):
                     thinking.delete()
             except Exception:
                 pass
-            try:
-                with msgs:
-                    with ui.row().classes('items-start gap-2 mb-3'):
-                        ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
-                        ui.markdown(response).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
-                # Case 4: scroll to bot response
-                scroll_chat_to_bottom()
-            except Exception:
-                pass
+            if is_error(response):
+                render_error(response, text)
+            else:
+                try:
+                    with msgs:
+                        with ui.row().classes('items-start gap-2 mb-3'):
+                            ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                            ui.markdown(response).style(f'background:white;padding:10px 14px;border-radius:12px;color:{TEXT};font-size:14px;line-height:1.4;max-width:80%;')
+                    # Case 4: scroll to bot response
+                    scroll_chat_to_bottom()
+                except Exception:
+                    pass
             try:
                 inp.enable()
                 send.enable()
                 inp.focus()
             except Exception:
                 pass
+
+    def _make_retry(retry_text):
+        async def _retry():
+            inp.value = retry_text
+            await send_msg()
+        return _retry
+
+    def render_error(msg, retry_text):
+        """Render an error bubble with a Retry button (never saved to history)."""
+        try:
+            with msgs:
+                with ui.row().classes('items-start gap-2 mb-3'):
+                    ui.avatar(icon='smart_toy', color=ACCENT, text_color='white', size='sm')
+                    with ui.column().classes('gap-1'):
+                        ui.label(msg).style(f'background:#fff3f3;padding:10px 14px;border-radius:12px;color:#a33333;font-size:13px;max-width:80%;')
+                        ui.button('Retry', on_click=_make_retry(retry_text)) \
+                            .props('flat dense no-caps').style(f'color:{ACCENT};align-self:flex-start;')
+            scroll_chat_to_bottom()
+        except Exception:
+            pass
 
     send.on_click(send_msg)
     inp.on('keydown.enter', send_msg)
@@ -271,6 +294,7 @@ def page_template(left_fn, extra_css=''):
                 return None
 
             timer = ui.timer(2.0, lambda: None)
+            attempts = {'n': 0}
             def check():
                 nonlocal thinking
                 fresh = poll_for_response()
@@ -286,6 +310,16 @@ def page_template(left_fn, extra_css=''):
                         scroll_chat_to_bottom()
                     except Exception:
                         pass
+                    return
+                attempts['n'] += 1
+                if attempts['n'] >= 15:  # ~30s with no reply -> offer retry
+                    timer.cancel()
+                    if thinking is not None:
+                        try:
+                            thinking.delete()
+                        except Exception:
+                            pass
+                    render_error('No response received. Please try again.', history[-1]['content'])
             timer = ui.timer(2.0, check)
             setattr(ui.context, history_key, True)
 
@@ -460,6 +494,10 @@ def _run_cleanup():
 async def _startup_cleanup():
     await asyncio.to_thread(_run_cleanup)
 
-ui.run(host='0.0.0.0', port=8080, title='AIFinder', reload=False, favicon=FAVICON,
-       show=os.getenv('NICEGUI_SHOW', '').lower() in ('1', 'true', 'yes'),
+_PROVIDER = os.getenv('LLM_PROVIDER') or get('llm', 'provider') or 'ollama'
+_NICEGUI_SHOW = os.getenv('NICEGUI_SHOW', '').lower() in ('1', 'true', 'yes')
+print(f"[AIFinder] LLM provider = {_PROVIDER} | app auto-opens browser = {_NICEGUI_SHOW}")
+
+ui.run(host='0.0.0.0', port=int(os.getenv('PORT', 8080)), title='AIFinder', reload=False, favicon=FAVICON,
+       show=_NICEGUI_SHOW,
        storage_secret=get("chat", "storage_secret") or "aifinder_secret_key")

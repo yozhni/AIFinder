@@ -208,6 +208,100 @@ make run-gui-open  # start NiceGUI app at http://localhost:8080
 | Neo4j Browser | 7474 | http://localhost:7474 | neo4j / aifinder_pass |
 | Neo4j Bolt | 7687 | localhost:7687 | - |
 
+## Running in Docker (local) & Docker networking
+
+The app can run two ways locally: **directly with Python**, or **as a container**. This matters because Docker containers are isolated mini-machines — **inside a container, `localhost` means the container itself, not your Mac.**
+
+### Why `localhost` fails from inside a container
+- App on your Mac → `localhost:5432` reaches the published Postgres port. ✅
+- App inside a container → `localhost:5432` looks *inside that same container* (Postgres isn't there). ❌
+
+### Three ways to run locally
+| Setup | App runs on | How the app reaches the DB | Extra setup |
+|---|---|---|---|
+| **A. App on host, DB in Docker** | your Mac (Python) | `localhost:5432` works | none ✅ |
+| **B. App + DB both in Docker (Compose)** | container | service names `db` / `neo4j` | add an `app` service |
+| **C. App in Docker, DB on host/elsewhere** | container | `host.docker.internal` | `--add-host` / `extra_hosts` |
+
+### Option A — simplest (recommended for first testing)
+Run the databases in Docker, but the app with Python on your Mac:
+```bash
+make up            # Postgres + Neo4j (published to localhost)
+make setup-db
+make load-data
+make sync-graph
+make run-gui-open  # app runs on the host → localhost:5432 works
+```
+No Docker-networking concerns at all. Use this unless you specifically need to test the container image.
+
+### Option B — test the actual container image (app + DB in Compose)
+Both the app and the DBs live in Docker and share one network, so they talk via **service names**.
+
+Add to `docker-compose.yml`:
+```yaml
+  app:
+    build: .
+    container_name: aifinder-app
+    profiles: ["app"]                 # opt-in (see below)
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://aifinder:aifinder_pass@db:5432/aifinder
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: aifinder_pass
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      STORAGE_SECRET: ${STORAGE_SECRET:-dev_secret}
+      OLLAMA_HOST: http://host.docker.internal:11434   # Ollama runs on the host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"            # makes that work on Linux too
+    depends_on: [db, neo4j]
+    restart: unless-stopped
+```
+Run it:
+```bash
+make up                                  # start db + neo4j
+docker compose --profile app up --build  # build & start app too
+open http://localhost:8080
+```
+Note `DATABASE_URL`/`NEO4J_URI` use **`db`** and **`neo4j`** (service names), not `localhost`.
+
+### Option C — run the app container against services on your host
+If you keep the DBs on your host (or another host), point the container at `host.docker.internal`:
+```bash
+docker build -t aifinder .
+docker run --rm -p 8080:8080 --env-file .env \
+  -e DATABASE_URL='postgresql://aifinder:aifinder_pass@host.docker.internal:5432/aifinder' \
+  -e NEO4J_URI='bolt://host.docker.internal:7687' \
+  -e LLM_PROVIDER=google \
+  --add-host host.docker.internal:host-gateway \
+  aifinder
+```
+
+### What `profiles: ["app"]` means (and why)
+By default, `docker compose up` starts **every** service in the file. Your `make up` runs `docker compose up -d`, which today starts only `db` + `neo4j`.
+
+A **profile** is just a tag meaning "only start me when explicitly asked." With `profiles: ["app"]`:
+- `make up` → still only `db` + `neo4j` (unchanged), and
+- `docker compose --profile app up --build` → app + db + neo4j.
+
+That's the only reason for it — to avoid changing what already works.
+
+### Other ways to isolate the app service
+1. **No profile** — app always starts with `docker compose up`. Simplest, but changes `make up`.
+2. **Separate compose file** — `docker-compose.app.yml`, run with
+   `docker compose -f docker-compose.yml -f docker-compose.app.yml up`. Leaves `docker-compose.yml` untouched.
+3. **`network_mode: host`** on the app — app shares the host network; works on Linux, limited on macOS Docker Desktop.
+4. **Attach a `docker run` container to the Compose network** — `docker run --network aifinder_default ...`, then use `db` / `neo4j` names.
+5. **Do nothing** — keep using `docker run` + `host.docker.internal` (Option C).
+6. **Don't containerize for testing** — use Option A (`make run-gui-open`).
+
+### Recommendation
+- Just validating the app? **Option A** — no extra setup.
+- Testing the real image before deploying? **Option B** (profiles or a separate compose file, so `make up` stays DB-only).
+- Pointing a container at services elsewhere? **Option C**.
+
 ## Make Commands
 
 ```bash
@@ -229,6 +323,34 @@ make clean         # Remove all data and containers
 ```
 
 ## LLM Options
+
+Two providers are supported: **Ollama** (local, free, offline) and **Google Gemini** (cloud, free tier). Choose one via `config.yaml → llm.provider`, **or** override it per environment with the `LLM_PROVIDER` environment variable.
+
+### Switching providers (Google ↔ Ollama)
+
+Resolution order (first match wins):
+
+1. **`LLM_PROVIDER`** environment variable
+2. **`config.yaml` → `llm.provider`**
+3. built-in default: **`ollama`**
+
+| Environment | How to set it |
+|---|---|
+| Local (`.env`, gitignored) | add `LLM_PROVIDER=ollama` (or `google`) |
+| Local Docker | `docker run --env-file .env -e LLM_PROVIDER=google ...` |
+| Cloud Run | `gcloud run services update aifinder --region us-central1 --update-env-vars LLM_PROVIDER=google` |
+
+Typical setup: **`ollama` locally** (free, offline) and **`google` in the cloud** (Cloud Run has no Ollama).
+
+The selected provider still needs its own config:
+- Ollama: `config.yaml → ollama.host` + `ollama.model`
+- Google: `config.yaml → google.api_key: ${GOOGLE_API_KEY}` — set `GOOGLE_API_KEY` in `.env` (gitignored) or as a host env var.
+
+Example `.env`:
+```
+LLM_PROVIDER=ollama
+GOOGLE_API_KEY=your_key_here
+```
 
 ### Option 1: Ollama (Local) - Free
 
@@ -301,7 +423,7 @@ google:
   api_key: ${GOOGLE_API_KEY}
 ```
 
-**Recommendation:** Start with Ollama (free, offline). Switch to Google if you need faster/better responses without running a local model.
+**Recommendation:** Start with Ollama (free, offline). Switch to Google (cloud/faster) by setting `config.yaml → llm.provider: google` or, per environment, `LLM_PROVIDER=google`.
 
 ## Data
 

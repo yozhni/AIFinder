@@ -2,7 +2,11 @@
 
 import os
 import re
+
+from dotenv import load_dotenv
 import yaml
+
+load_dotenv()
 
 _config = None
 

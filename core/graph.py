@@ -8,9 +8,9 @@ from config import get
 
 load_dotenv()
 
-NEO4J_URI = get("neo4j", "uri")
-NEO4J_USER = get("neo4j", "user")
-NEO4J_PASSWORD = get("neo4j", "password")
+NEO4J_URI = os.getenv("NEO4J_URI") or get("neo4j", "uri")
+NEO4J_USER = os.getenv("NEO4J_USER") or get("neo4j", "user")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD") or get("neo4j", "password")
 
 
 def get_driver():
@@ -152,6 +152,7 @@ def find_compatible_products(product_id):
     MATCH (p:Product {id: $product_id})-[:COMPATIBLE_WITH]->(compat:Product)
     RETURN compat.id AS id, compat.name AS name, compat.brand AS brand,
            compat.price AS price
+    LIMIT 20
     """
     return execute_query(query, {"product_id": product_id})
 

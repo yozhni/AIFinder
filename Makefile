@@ -1,4 +1,4 @@
-.PHONY: help up down install setup-db load-data run run-open run-gui run-gui-open setup dev status logs clean test
+.PHONY: help up down install setup-db load-data sync-graph clean-sync-graph run run-open run-gui setup dev status logs clean test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -29,15 +29,13 @@ run-open: ## Run Streamlit app and open browser
 	sleep 3
 	open http://localhost:8501
 
-run-gui: ## Run NiceGUI app
-	lsof -ti:8080 | xargs kill -9 2>/dev/null; pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
-	python3 nicegui_app.py
-
-run-gui-open: ## Run NiceGUI app and open browser
-	lsof -ti:8080 | xargs kill -9 2>/dev/null; pkill -9 -f "nicegui_app" 2>/dev/null; sleep 1
-	python3 nicegui_app.py &
-	sleep 5
-	open http://localhost:8080
+run-gui: ## Run NiceGUI app and open one browser tab
+	@pkill -f "nicegui_app" 2>/dev/null; sleep 1; pkill -9 -f "nicegui_app" 2>/dev/null; lsof -ti:8080 | xargs kill -9 2>/dev/null; sleep 1
+	@if lsof -ti:8080 >/dev/null 2>&1; then echo "ERROR: port 8080 still in use"; exit 1; fi
+	@NICEGUI_SHOW=0 python3 nicegui_app.py & APP=$$!; \
+	 for i in $$(seq 1 60); do curl -s -o /dev/null http://localhost:8080 && break; sleep 1; done; \
+	 open http://localhost:8080; \
+	 wait $$APP
 
 setup: install up setup-db load-data ## 1) Install everything (deps + DB + data)
 
@@ -63,6 +61,12 @@ neo4j: ## Open Neo4j shell
 
 reindex: ## Reindex database
 	docker exec -i aifinder-postgres psql -U aifinder -d aifinder -c "REINDEX INDEX idx_products_embedding;"
+
+sync-graph: ## Sync PostgreSQL -> Neo4j (build graph nodes + relationships)
+	python core/sync.py
+
+clean-sync-graph: ## Wipe Neo4j graph, then rebuild it from PostgreSQL
+	python scripts/rebuild_graph.py
 
 test: ## Run all tests
 	python3 tests/test_all.py

@@ -10,7 +10,7 @@ from pgvector.psycopg2 import register_vector
 
 from config import get
 
-DATABASE_URL = get("database", "url")
+DATABASE_URL = os.getenv("DATABASE_URL") or get("database", "url")
 
 # Chat history cleanup config
 HISTORY_LIMIT = get("chat", "history_limit") or 50
@@ -513,3 +513,212 @@ def get_order(order_id):
     )
     order["items"] = [dict(i) for i in items] if items else []
     return order
+
+
+# ============================================
+# P1.2 - RETRIEVAL UPGRADES
+# ============================================
+
+def get_products_by_ids(ids):
+    if not ids:
+        return []
+    results = execute_query(
+        "SELECT * FROM products WHERE id = ANY(%s) AND is_deleted = FALSE",
+        (list(ids),))
+    return [dict(r) for r in results] if results else []
+
+
+def find_by_spec(category=None, brand=None, min_price=None, max_price=None,
+                 refrigerated=None, sterile=None, min_rcf=None, volume=None, limit=10):
+    """Structured spec search (numeric/boolean/volume filters)."""
+    conditions = ["is_deleted = FALSE"]
+    params = []
+    if category:
+        conditions.append("category ILIKE %s"); params.append(f"%{category}%")
+    if brand:
+        conditions.append("brand ILIKE %s"); params.append(f"%{brand}%")
+    if min_price is not None:
+        conditions.append("price_usd >= %s"); params.append(min_price)
+    if max_price is not None:
+        conditions.append("price_usd <= %s"); params.append(max_price)
+    if refrigerated is not None:
+        conditions.append("refrigerated = %s"); params.append(refrigerated)
+    if sterile is not None:
+        conditions.append("sterile = %s"); params.append(sterile)
+    if min_rcf is not None:
+        conditions.append("max_rcf_xg >= %s"); params.append(min_rcf)
+    if volume:
+        conditions.append("(volume_or_capacity ILIKE %s OR specifications ILIKE %s)")
+        params.extend([f"%{volume}%", f"%{volume}%"])
+    query = f"SELECT * FROM products WHERE {' AND '.join(conditions)} ORDER BY price_usd LIMIT %s"
+    params.append(limit)
+    results = execute_query(query, tuple(params))
+    return [dict(r) for r in results] if results else []
+
+
+# light query understanding: synonyms + unit normalization
+_SYNONYMS = {
+    "pipet": "pipette", "pipets": "pipette", "pipettes": "pipette",
+    "falcon": "tube", "eppendorf": "tube", "microcentrifuge tube": "tube",
+    "epi": "tube", "rt": "room temperature",
+    "fridge": "refrigerated", "cold": "refrigerated",
+    "autoclave": "sterile", "sterile": "sterile",
+    "spin": "centrifuge", "spinner": "centrifuge",
+    "eppendorf tube": "tube",
+}
+
+
+def expand_query(query):
+    """Normalize the query text (synonyms + unit spacing)."""
+    if not query:
+        return query
+    import re as _re
+    q = query
+    # normalize units: "15ml" -> "15 mL"
+    q = _re.sub(r"(\d+(?:\.\d+)?)\s*(ml|mL|ML|ul|uL|µL|L)\b", r"\1 \2", q)
+    # apply synonyms (whole words)
+    for src, dst in _SYNONYMS.items():
+        q = _re.sub(rf"\b{_re.escape(src)}\b", dst, q, flags=_re.IGNORECASE)
+    return q
+
+
+def hybrid_search(query, limit=10, k=60):
+    """Fuse keyword (SQL) + semantic (pgvector) via Reciprocal Rank Fusion."""
+    if not query:
+        return []
+    query = expand_query(query)
+    scores = {}
+
+    try:
+        kw = search_products(query=query, limit=limit * 2)
+    except Exception:
+        kw = []
+    for rank, p in enumerate(kw):
+        scores[p["id"]] = scores.get(p["id"], 0.0) + 1.0 / (k + rank + 1)
+
+    try:
+        embedding = generate_embedding(query)
+        sem = semantic_search(query_embedding=embedding, limit=limit * 2)
+    except Exception:
+        sem = []
+    for rank, p in enumerate(sem):
+        scores[p["id"]] = scores.get(p["id"], 0.0) + 1.0 / (k + rank + 1)
+
+    if not scores:
+        return []
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+    products = {p["id"]: p for p in get_products_by_ids([pid for pid, _ in ranked])}
+    return [products[pid] for pid, _ in ranked if pid in products]
+
+
+# ============================================
+# P1.3 - MEMORY & PERSONALIZATION
+# ============================================
+
+_APPLICATION_HINTS = [
+    "cell culture", "protein purification", "protein expression", "cloning", "pcr",
+    "chromatography", "sample preparation", "biochemistry", "molecular biology",
+    "bacterial culture", "mammalian cell", "centrifugation",
+]
+
+
+def ensure_profile_table():
+    execute_query("""
+        CREATE TABLE IF NOT EXISTS user_profile (
+            session_id VARCHAR(100) PRIMARY KEY,
+            budget_max DECIMAL(10,2),
+            applications JSONB,
+            brands JSONB,
+            lab_type VARCHAR(100),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )""", fetch=False)
+
+
+def extract_preferences(text):
+    """Best-effort extraction of budget/applications/brands from a message."""
+    if not text:
+        return {}
+    import re as _re
+    prefs = {}
+    low = text.lower()
+
+    # budget: "under $2000", "budget 2000", "around $1,500", or a bare $ amount
+    m = _re.search(r"(?:under|below|less than|budget(?: of)?|around|about|max)\s*\$?\s*(\d[\d,]*)", low)
+    if not m:
+        m = _re.search(r"\$\s*(\d[\d,]*)", low)
+    if m:
+        try:
+            prefs["budget_max"] = float(m.group(1).replace(",", ""))
+        except ValueError:
+            pass
+
+    apps = [a for a in _APPLICATION_HINTS if a in low]
+    if apps:
+        prefs["applications"] = apps
+
+    return prefs
+
+
+def get_profile(session_id):
+    try:
+        ensure_profile_table()
+        rows = execute_query(
+            "SELECT budget_max, applications, brands, lab_type FROM user_profile WHERE session_id = %s",
+            (session_id,))
+        if rows:
+            p = dict(rows[0])
+            if p.get("budget_max") is not None:
+                p["budget_max"] = float(p["budget_max"])
+            return p
+    except Exception:
+        pass
+    return {}
+
+
+def upsert_profile(session_id, budget_max=None, applications=None, brands=None, lab_type=None):
+    if not any([budget_max, applications, brands, lab_type]):
+        return
+    try:
+        ensure_profile_table()
+        current = get_profile(session_id)
+        apps = current.get("applications") or []
+        for a in (applications or []):
+            if a not in apps:
+                apps.append(a)
+        execute_query(
+            """INSERT INTO user_profile (session_id, budget_max, applications, brands, lab_type, updated_at)
+               VALUES (%s, %s, %s, %s, %s, NOW())
+               ON CONFLICT (session_id) DO UPDATE SET
+                 budget_max = COALESCE(EXCLUDED.budget_max, user_profile.budget_max),
+                 applications = EXCLUDED.applications,
+                 brands = COALESCE(EXCLUDED.brands, user_profile.brands),
+                 lab_type = COALESCE(EXCLUDED.lab_type, user_profile.lab_type),
+                 updated_at = NOW()""",
+            (session_id, budget_max, Json(apps), Json(brands) if brands else None, lab_type),
+            fetch=False)
+    except Exception:
+        pass
+
+
+# ============================================
+# P1.4 - CART INTELLIGENCE HELPERS
+# ============================================
+
+def get_cart_products(session_id):
+    results = execute_query(
+        """SELECT p.* FROM cart_items ci JOIN products p ON ci.product_id = p.id
+           WHERE ci.session_id = %s AND p.is_deleted = FALSE""",
+        (session_id,))
+    return [dict(r) for r in results] if results else []
+
+
+def estimate_quote(session_id):
+    items = get_cart(session_id)
+    subtotal = 0.0
+    discount = 0.0
+    for it in items:
+        price = float(it["price_usd"]) if it["price_usd"] else 0.0
+        qty = it["quantity"]
+        subtotal += price * qty
+    return {"items": len(items), "subtotal": round(subtotal, 2),
+            "total": round(subtotal - discount, 2)}

@@ -1,0 +1,27 @@
+# Secrets
+.env
+*.env
+
+# VCS
+.git
+.gitignore
+
+# Data (large CSVs, caches)
+*.csv
+data/testdata/
+
+# Python caches
+__pycache__/
+*.pyc
+
+# NiceGUI runtime state
+.nicegui/
+
+# Not needed in the container
+docker-compose.yml
+Makefile
+README.md
+roadmap.md
+tests/
+images/
+.DS_Store

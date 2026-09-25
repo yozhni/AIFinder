@@ -77,7 +77,11 @@ def get_recommendations(product_id=None, use_case=None, application=None, limit=
         if product:
             return pg_recommend(product_id=product_id, limit=limit)
     if use_case or application:
-        return get_recommendations_graph(use_case=use_case, application=application, limit=limit)
+        try:
+            return get_recommendations_graph(use_case=use_case, application=application, limit=limit)
+        except Exception:
+            # Graph unavailable (e.g. Neo4j down/not synced) -> fall back to SQL
+            return pg_recommend(use_case=use_case, limit=limit)
     return pg_recommend(limit=limit)
 
 

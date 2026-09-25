@@ -24,7 +24,8 @@ def sync_products():
             cur.execute("""
                 SELECT id, product_name, brand, price_usd, category,
                        specifications, application, use_case,
-                       refrigerated, sterile, endotoxin_free, volume_or_capacity
+                       refrigerated, sterile, endotoxin_free, volume_or_capacity,
+                       compatible_with
                 FROM products
                 WHERE is_deleted = FALSE
             """)
@@ -54,7 +55,8 @@ def sync_products():
                         p.refrigerated = $refrigerated,
                         p.sterile = $sterile,
                         p.endotoxin_free = $endotoxin_free,
-                        p.volume_or_capacity = $volume_or_capacity
+                        p.volume_or_capacity = $volume_or_capacity,
+                        p.compatible_with = $compatible_with
                 """, {
                     "id": product_dict["id"],
                     "name": product_dict["product_name"],
@@ -68,6 +70,7 @@ def sync_products():
                     "sterile": product_dict["sterile"],
                     "endotoxin_free": product_dict["endotoxin_free"],
                     "volume_or_capacity": product_dict["volume_or_capacity"],
+                    "compatible_with": product_dict.get("compatible_with"),
                 })
 
                 if (i + 1) % 100 == 0:
@@ -162,6 +165,28 @@ def create_relationships():
                 MERGE (p2)-[:ALTERNATIVE_TO]->(p1)
             """)
             print("  Created ALTERNATIVE_TO relationships")
+
+            # Create Workflow -[:REQUIRES]-> Product (a workflow per application)
+            session.run("""
+                MATCH (p:Product)
+                WHERE p.application IS NOT NULL AND p.application <> ''
+                MERGE (w:Workflow {name: p.application + ' workflow'})
+                MERGE (w)-[:REQUIRES]->(p)
+            """)
+            print("  Created Workflow-[:REQUIRES]->Product relationships")
+
+            # Create COMPATIBLE_WITH between products sharing the same
+            # compatible_with text within a category (bounded cliques)
+            session.run("""
+                MATCH (p1:Product), (p2:Product)
+                WHERE p1.compatible_with IS NOT NULL AND p1.compatible_with <> ''
+                  AND p1.compatible_with = p2.compatible_with
+                  AND p1.category = p2.category
+                  AND p1.id < p2.id
+                MERGE (p1)-[:COMPATIBLE_WITH]->(p2)
+                MERGE (p2)-[:COMPATIBLE_WITH]->(p1)
+            """)
+            print("  Created COMPATIBLE_WITH relationships")
 
     finally:
         driver.close()
